@@ -1,6 +1,6 @@
-name = "IceAnalysis"
+name = "ModelAnalysis"
 uuid = "46d4c6b1-fa4b-49bf-9a1f-94c6bce1a78c"
-authors = ["Alexander Robinson <robinson@ucm.es>"]
+authors = ["Alexander Robinson <alexander.robinson@awi.de>"]
 version = "0.1.0"
 
 [deps]

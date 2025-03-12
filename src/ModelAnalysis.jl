@@ -1,4 +1,4 @@
-module IceAnalysis
+module ModelAnalysis
 
 # Note to build a new myanalysis environment, run the following:
 #   mkdir ~/.JuliaEnvironments/myanalysis
@@ -53,4 +53,4 @@ greetme() = print("Hello World! Revised: 2025-03-12 19:05")
 
 export greetme
 
-end # module IceAnalysis
+end # module ModelAnalysis

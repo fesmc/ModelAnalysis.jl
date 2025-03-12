@@ -33,15 +33,18 @@ end
 function ensemble_def(path;sort_by::String="")   
     
     # Define the info filename
-    fname = string(path,"/","info.txt")
+    fname = joinpath(path,"info.txt")
 
     # Read the ensemble info table into a DataFrame format, if it exists
     if isfile(fname)
-        info  = CSV.read(fname,DataFrames.DataFrame,delim=' ',ignorerepeated=true)
+        info  = CSV.read(fname,DataFrames.DataFrame,delim=' ',ignorerepeated=true,header=1)
     else 
         error(string("ensemble_def:: Error: file does not exist: ",fname))
     end
     
+    # Print summary of info
+    println(first(info,size(info,1)))
+
     nsim = DataFrames.nrow(info) 
     
     # Initialize an empty array of the right length
@@ -146,7 +149,7 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
     for k in 1:ns 
 
         # Get path of file of interest for reference sim
-        path_now = ens.sim[k] * "/" * filename
+        path_now = joinpath(ens.sim[k],filename)
 
         # Open NetCDF file
         ds = NCDataset(path_now,"r")
@@ -196,7 +199,7 @@ function ensemble_get_var_ND!(ens::ensemble,varname::String,filename::String)
     ns  = size(ens.info,1)
 
     # Get path of file of interest for reference sim
-    path_now = ens.sim[ref] * "/" * filename
+    path_now = joinpath(ens.sim[ref],filename)
 
     # First load variable from reference sim
     ds = NCDataset(path_now,"r")

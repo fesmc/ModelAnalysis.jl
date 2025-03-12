@@ -17,7 +17,7 @@ using Colors
 using Statistics
 using NCDatasets
 
-include("IcePlots.jl")
+include("Plots.jl")
 
 export make_axis_ice2D;
 export gencol_vel;
@@ -28,7 +28,7 @@ export heatmap_ice2D!
 export heatmap_ice2D_logdiff!
 export Colorbar_logdiff!
 
-include("IceEnsembles.jl")
+include("Ensembles.jl")
 
 export ensemble
 export ensemble_def
@@ -42,14 +42,14 @@ export calc_bifurcation
 export load_V_ice_from_H_ice
 export ensemble_check 
 
-include("IceFunctions.jl")
+include("Functions.jl")
 
 export calc_bifurcation
 export load_V_ice_from_H_ice
 
 ### Additional functions ###
 
-greetme() = print("Hello World! Revised: 2025-03-12 18:16")
+greetme() = print("Hello World! Revised: 2025-03-12 19:05")
 
 export greetme
 

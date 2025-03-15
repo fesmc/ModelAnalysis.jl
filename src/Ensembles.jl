@@ -66,7 +66,7 @@ function ensemble_def(path;sort_by::String="",runid::Int64=1)
     if found_info
         # Ensemble, populate the simulation path by combing path with rundir
         for i in 1:nsim
-            sim[i] = joinpath(path,info[i,"rundir"])
+            sim[i] = joinpath(path,string(info[i,"rundir"]))
         end
     else
         # Single simulation, set the simulation path equal to the path

@@ -14,6 +14,8 @@ import CSV
 
 using CairoMakie
 using Colors
+using ColorSchemes
+
 using Statistics
 using NCDatasets
 using FFTW
@@ -34,6 +36,7 @@ include("Ensembles.jl")
 export ensemble
 export ensemble_def
 export ensemble_sort!
+export ensemble_linestyling!
 export ensemble_get_var!
 export ens_stat
 export ensemble_get_var_ND!

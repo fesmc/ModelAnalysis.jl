@@ -26,6 +26,7 @@ mutable struct ensemble
     color::Any
     label::Any
     linewidth::Any
+    linestyle::Any
     markersize::Any
     v::Dict
 end
@@ -79,11 +80,12 @@ function ensemble_def(path;sort_by::String="",runid::Int64=1)
     label = fill("",nsim)
     color = fill(colorant"Black",nsim)
     linewidth = fill(1,nsim)
+    linestyle = fill(:solid,nsim)
     markersize = fill(1,nsim) 
 
     # Store all information for output in the ensemble object
     ens = ensemble([path],set,sim,nsim,info,valid,color,label,
-                                linewidth,markersize,Dict())
+                                linewidth,linestyle,markersize,Dict())
 
     if sort_by != ""
         ensemble_sort!(ens,sort_by)
@@ -153,6 +155,47 @@ function ensemble_sort!(ens,sort_by::String)
     ens.label       = ens.label[kk]
     ens.linewidth   = ens.linewidth[kk]
     ens.markersize  = ens.markersize[kk]
+
+    return
+end
+
+function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=nothing,
+                                            colors=:tab10,linestyle=:solid,linewidth=1)
+
+    # Set default style options
+    ens.color[:]     .= colorant"Black"
+    ens.linestyle[:] .= linestyle
+    ens.linewidth[:] .= linewidth
+
+    if !isnothing(cat_col)
+        # Determine unique values of distinguishing variable cat_col
+        vals = unique(ens.info[!,cat_col])
+    
+        # Generate the colormap for these values
+        col_map = cgrad(colors,vals);
+    
+        for (i,val) in enumerate(vals)
+            kk = findall(ens.info[!,cat_col] .== val)
+            ens.color[kk] .= col_map[i]
+        end
+    
+    end
+
+    if !isnothing(cat_style) 
+        # Get line styles
+
+        # TO DO
+
+        vals = unique(ens.info[!,cat_style])
+    end
+    
+    if !isnothing(cat_width) 
+        # Get line widths
+
+        # TO DO
+
+        vals = unique(ens.info[!,cat_width])
+    end
 
     return
 end

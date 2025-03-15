@@ -16,6 +16,7 @@ using CairoMakie
 using Colors
 using Statistics
 using NCDatasets
+using FFTW
 
 include("Plots.jl")
 
@@ -46,10 +47,11 @@ include("Functions.jl")
 
 export calc_bifurcation
 export load_V_ice_from_H_ice
+export dominant_period
 
 ### Additional functions ###
 
-greetme() = print("Hello World! Revised: 2025-03-12 19:05")
+greetme() = print("Hello World! Revised: 2025-03-15 09:21")
 
 export greetme
 

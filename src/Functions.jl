@@ -40,3 +40,16 @@ function load_V_ice_from_H_ice(path;varname="H_ice",dx=16e3)
     return(V_ice)
 
 end
+
+function dominant_period(t, x)
+    N = length(x)                    # Number of data points
+    dt = mean(diff(t))                # Approximate time step (assumes uniform spacing)
+    
+    X = abs2.(FFTW.fft(x))            # Compute power spectrum (magnitude squared)
+    freqs = FFTW.fftfreq(N, 1/dt)     # Compute frequency values
+
+    pos_indices = findall(freqs .> 0) # Ignore negative frequencies
+    dominant_idx = pos_indices[argmax(X[pos_indices])] # Index of max power
+
+    return 1 / freqs[dominant_idx]    # Return dominant period
+end

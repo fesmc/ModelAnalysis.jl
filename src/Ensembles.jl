@@ -235,7 +235,9 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
         var = var*scale; 
 
         # Store variable in ens output
-        if isnothing(newname) newname = varname
+        if isnothing(newname) 
+            newname = varname
+        end
         push!(ens.v[newname],var)
         
     end

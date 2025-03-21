@@ -163,9 +163,9 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
                                             colors=:tab10,linestyle=:solid,linewidth=1)
 
     # Set default style options
-    ens.color[:]     .= colorant"Black"
-    ens.linestyle[:] .= linestyle
-    ens.linewidth[:] .= linewidth
+    ens.color     = fill(colorant"Black",ens.nsim)
+    ens.linestyle = fill(linestyle,ens.nsim)
+    ens.linewidth = fill(linewidth,ens.nsim)
 
     if !isnothing(cat_col)
         # Determine unique values of distinguishing variable cat_col
@@ -200,7 +200,7 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
     return
 end
 
-function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=1.0)
+function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=1.0,newname=nothing)
 
     println("\nLoad ",varname," from ",filename)
     println("  Ensemble path: ",ens.path)
@@ -235,7 +235,8 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
         var = var*scale; 
 
         # Store variable in ens output
-        push!(ens.v[varname],var)
+        if isnothing(newname) newname = varname
+        push!(ens.v[newname],var)
         
     end
 
@@ -315,7 +316,7 @@ function ensemble_get_var_slice!(ens,vout::String,vin::String;time_slice=nothing
         var  = ens.v[vin][k] 
 
         # Get time index of interest
-        if time_slice == nothing
+        if isnothing(time_slice)
             time_now = maximum(time)
         else
             time_now = time_slice 
@@ -329,7 +330,7 @@ function ensemble_get_var_slice!(ens,vout::String,vin::String;time_slice=nothing
 
     end 
 
-    if var_dim == nothing
+    if isnothing(var_dim)
         out = var_out 
     else 
         out = [var_dim var_out]

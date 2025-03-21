@@ -230,8 +230,8 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
         if !haskey(ds,varname)
             error("load_var:: Error: variable not found in file.")
         else 
-            var = ds[varname][:];
-        end 
+            var = Array(ds[varname]);
+        end
 
         # Close NetCDF file
         close(ds) 

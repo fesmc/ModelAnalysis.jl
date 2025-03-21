@@ -30,4 +30,23 @@ That's it!
 
 ## Ensembles
 
-To do
+Example usage of Ensembles.jl with Yelmo model output (1D and 2D):
+
+```julia
+    ens = ensemble_def(paths)
+
+    # Add some variables to ensemble
+    ensemble_get_var!(ens,"time","yelmo1D.nc",scale=1e-3,newname="ts_time")
+    ensemble_get_var!(ens,"uxy_s","yelmo1D.nc",newname="ts_uxy_s")
+    ensemble_get_var!(ens,"H_ice","yelmo1D.nc",newname="ts_H_ice")
+
+    ensemble_get_var!(ens,"time","yelmo2D.nc")
+    ensemble_get_var!(ens,"xc","yelmo2D.nc")
+    ensemble_get_var!(ens,"yc","yelmo2D.nc")
+    ensemble_get_var!(ens,"H_ice","yelmo2D.nc")
+
+    # Save to output file
+    fileout = "ensemble01.jld2";
+    @save fileout ens
+    println("Saved $fileout")
+```

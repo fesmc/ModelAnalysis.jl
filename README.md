@@ -10,21 +10,21 @@ develop anything in the package, please make sure to use your own branch.
 
 For now, ModelAnalysis.jl should be used like any local package under development. This means
 
-    1. Clone the repository to a local directory.
-    
-    2. Add ModelAnalysis.jl to your workspace in Julia using `Pkg.dev()` rather than `Pkg.add()`:
+1. Clone the repository to a local directory.
 
-        ```julia
-        using Pkg; Pkg.dev("path/to/ModelAnalysis.jl")
-        ```
+2. Add ModelAnalysis.jl to your workspace in Julia using `Pkg.dev()` rather than `Pkg.add()`:
 
-    3. Now use it like a normal package. If you will make changes to it, then consider also
-    loading Revise.jl (and do so before using ModelAnalysis.jl):
+    ```julia
+    using Pkg; Pkg.dev("path/to/ModelAnalysis.jl")
+    ```
 
-        ```julia
-        using Revise
-        using ModelAnalysis
-        ```
+3. Now use it like a normal package. If you will make changes to it, then consider also
+loading Revise.jl (and do so before using ModelAnalysis.jl):
+
+    ```julia
+    using Revise
+    using ModelAnalysis
+    ```
 
 That's it!
 

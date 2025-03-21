@@ -209,8 +209,13 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
     # Get total number of sims 
     ns  = size(ens.info,1)
 
+    # Set how the variable will be saved
+    if isnothing(newname) 
+        newname = varname
+    end
+
     # Make an empty array to hold the variable 
-    ens.v[varname] = []
+    ens.v[newname] = []
 
     # Load time and variable from each simulation in ensemble 
     for k in 1:ns 
@@ -235,9 +240,6 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
         var = var*scale; 
 
         # Store variable in ens output
-        if isnothing(newname) 
-            newname = varname
-        end
         push!(ens.v[newname],var)
         
     end

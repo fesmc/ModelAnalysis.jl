@@ -8,9 +8,11 @@ module ModelAnalysis
 #   add Statistics, Colors, ColorSchemes, Dates, DataFrames, PrettyTables, CSV, JLD2, Printf, NCDatasets, CairoMakie
 # Make sure to add this line to the top of any scripts: 
 #   import Pkg; Pkg.activate("$(homedir())/.JuliaEnvironments/myanalysis")
+import Dates
 import DataFrames 
 import PrettyTables
 import CSV 
+
 
 using CairoMakie
 using Colors
@@ -20,8 +22,12 @@ using Statistics
 using NCDatasets
 using FFTW
 
+today_prefix = string(Dates.today())*'_';
+export today_prefix;
+
 include("Plots.jl")
 
+export plt_prefix;
 export make_axis_ice2D;
 export gencol_vel;
 export heatmap_ice2D_bathymetry!
@@ -34,6 +40,7 @@ export Colorbar_logdiff!
 include("Ensembles.jl")
 
 export ensemble
+export ensemble_save
 export ensemble_def
 export ensemble_sort!
 export ensemble_linestyling!

@@ -11,6 +11,8 @@
 #export heatmap_ice2D_logdiff!
 #export Colorbar_logdiff!
 
+plt_prefix = "plots/"*string(Dates.today())*"_";
+
 function make_axis_ice2D(fig_now,xlim,ylim)
     ax = Axis(fig_now,aspect=DataAspect());
     hidedecorations!(ax);

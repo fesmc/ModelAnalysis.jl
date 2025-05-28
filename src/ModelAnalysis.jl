@@ -23,6 +23,7 @@ using Statistics
 using NCDatasets
 using FFTW
 
+
 today_prefix = string(Dates.today())*'_';
 export today_prefix;
 
@@ -42,7 +43,6 @@ include("Ensembles.jl")
 
 export ensemble
 export ensemble_save
-export ensemble_def
 export ensemble_sort!
 export ensemble_linestyling!
 export ensemble_get_var!

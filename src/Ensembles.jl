@@ -31,19 +31,7 @@ mutable struct ensemble
     v::Dict
 end
 
-# Save an ensemble to a file using JLD2 but give it a user-defined name for loading later
-function ensemble_save(ens,filename,name)
-
-    #@save fileout ens
-    JLD2.jldopen(filename, "w") do file
-        file[name] = ens  # Save the ensemble with the desired name
-    end
-    println("Saved $filename")
-
-    return
-end
-
-function ensemble_def(path;sort_by::String="",runid::Int64=1)   
+function ensemble(path;sort_by::String="",runid::Int64=1)   
     
     # Check if path exists
     if !ispath(path)
@@ -107,15 +95,15 @@ function ensemble_def(path;sort_by::String="",runid::Int64=1)
 
 end
 
-function ensemble_def(paths::Array{String};sort_by::String="")   
+function ensemble(paths::Array{String};sort_by::String="")   
     
     # Define the ensemble object based on first ensemble set of interest
-    ens = ensemble_def(paths[1])
+    ens = ensemble(paths[1])
 
     # Define info array for entire list 
     for j = 2:size(paths,1)
 
-        ens_now = ensemble_def(paths[j])
+        ens_now = ensemble(paths[j])
         
         ens_now.set .= j 
 
@@ -167,6 +155,18 @@ function ensemble_sort!(ens,sort_by::String)
     ens.label       = ens.label[kk]
     ens.linewidth   = ens.linewidth[kk]
     ens.markersize  = ens.markersize[kk]
+
+    return
+end
+
+# Save an ensemble to a file using JLD2 but give it a user-defined name for loading later
+function ensemble_save(ens,filename,name)
+
+    #@save fileout ens
+    JLD2.jldopen(filename, "w") do file
+        file[name] = ens  # Save the ensemble with the desired name
+    end
+    println("Saved $filename")
 
     return
 end

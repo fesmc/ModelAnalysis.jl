@@ -31,6 +31,18 @@ mutable struct ensemble
     v::Dict
 end
 
+# Save an ensemble to a file using JLD2 but give it a user-defined name for loading later
+function ensemble_save(ens,filename,name)
+
+    #@save fileout ens
+    jldopen(filename, "w") do file
+        file[name] = ens  # Save the ensemble with the desired name
+    end
+    println("Saved $filename")
+
+    return
+end
+
 function ensemble_def(path;sort_by::String="",runid::Int64=1)   
     
     # Check if path exists

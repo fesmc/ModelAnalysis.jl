@@ -35,7 +35,7 @@ end
 function ensemble_save(ens,filename,name)
 
     #@save fileout ens
-    jldopen(filename, "w") do file
+    JLD2.jldopen(filename, "w") do file
         file[name] = ens  # Save the ensemble with the desired name
     end
     println("Saved $filename")

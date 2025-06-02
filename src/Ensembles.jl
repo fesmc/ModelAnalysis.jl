@@ -2,6 +2,7 @@
 #import DataFrames 
 #import PrettyTables
 #import CSV 
+#import YAXArrays
 
 #using NCDatasets
 #using Statistics
@@ -17,19 +18,22 @@
 #export ensemble_check
 
 mutable struct ensemble
-    path::Array{String}
+    ens_path::Array{String}
+    sim_path::Array{String}
     set::Array{Integer}
-    sim::Array{String}
     nsim::Integer
-    info::DataFrames.DataFrame
-    valid::Any
-    color::Any
-    label::Any
-    linewidth::Any
-    linestyle::Any
-    markersize::Any
-    v::Dict
+    p::DataFrames.DataFrame         # info/parameters
+    s::Dict{String,Any}             # styles
+    v::Dict{String,YAXArray}        # YAXArrays
+    ve::Dict{String,Any}            # Extra variables (non YAXArrays)
 end
+
+#valid::Any
+#color::Any
+#label::Any
+#linewidth::Any
+#linestyle::Any
+#markersize::Any
 
 function ensemble(path;sort_by::String="",runid::Int64=1)   
     
@@ -61,31 +65,31 @@ function ensemble(path;sort_by::String="",runid::Int64=1)
     
     # Initialize an empty array of the right length
     set = fill(1,nsim)
-    sim = fill("",nsim)
+    sim_path = fill("",nsim)
     
     # Populate the array
     if found_info
         # Ensemble, populate the simulation path by combing path with rundir
         for i in 1:nsim
-            sim[i] = joinpath(path,string(info[i,"rundir"]))
+            sim_path[i] = joinpath(path,string(info[i,"rundir"]))
         end
     else
         # Single simulation, set the simulation path equal to the path
         for i in 1:nsim
-            sim[i] = path
+            sim_path[i] = path
         end
     end
 
-    valid = fill(true,nsim)
-    label = fill("",nsim)
-    color = fill(colorant"Black",nsim)
-    linewidth = fill(1,nsim)
-    linestyle = fill(:solid,nsim)
-    markersize = fill(1,nsim) 
+    style = Dict()
+    style[:valid] = fill(true,nsim)
+    style[:label] = fill("",nsim)
+    style[:color] = fill(colorant"Black",nsim)
+    style[:linewidth] = fill(1,nsim)
+    style[:linestyle] = fill(:solid,nsim)
+    style[:markersize] = fill(1,nsim) 
 
     # Store all information for output in the ensemble object
-    ens = ensemble([path],set,sim,nsim,info,valid,color,label,
-                                linewidth,linestyle,markersize,Dict())
+    ens = ensemble([path],sim_path,set,nsim,info,style,Dict(),Dict())
 
     if sort_by != ""
         ensemble_sort!(ens,sort_by)
@@ -111,28 +115,25 @@ function ensemble(paths::Array{String};sort_by::String="")
             ens = deepcopy(ens_now)
         else
             
-            # Handle joining info DataFrames using vcat, in case
-            # columns are not the same...
-            #append!(ens.info,ens_now.info)
-            ens.info = vcat(ens.info,ens_now.info; cols=:union)
-            
-            append!(ens.path,ens_now.path)
+            append!(ens.ens_path,ens_now.ens_path)
+            append!(ens.sim_path,ens_now.sim_path)
             append!(ens.set,ens_now.set)
-            append!(ens.sim,ens_now.sim)
-            append!(ens.valid,ens_now.valid)
-            append!(ens.color,ens_now.color)
-            append!(ens.label,ens_now.label)
-            append!(ens.linewidth,ens_now.linewidth)
-            append!(ens.markersize,ens_now.markersize)
+            
+            # Handle joining p DataFrames using vcat, in case
+            # columns are not the same...
+            #append!(ens.p,ens_now.p)
+            ens.p = vcat(ens.p,ens_now.p; cols=:union)
+            ens.s = vcat(ens.s,ens_now.s; cols=:union)
+            
         end
 
     end
     
     # Update the total number of simulations and number of ensemble sets 
-    ens.nsim = DataFrames.nrow(ens.info) 
+    ens.nsim = DataFrames.nrow(ens.p) 
 
     println("Loaded ensemble, number of simulations: ",ens.nsim)
-    println("Paths:")
+    println("Ensemble path(s):")
     for j = 1:size(paths,1)
         println("  ",paths[j])
     end
@@ -146,15 +147,11 @@ end
 
 function ensemble_sort!(ens,sort_by::String)
 
-    kk = sortperm(ens.info[!,sort_by])
-    ens.info        = ens.info[kk,:]
+    kk = sortperm(ens.p[!,sort_by])
+    ens.sim_path    = ens.sim_path[kk]
     ens.set         = ens.set[kk]
-    ens.sim         = ens.sim[kk]
-    ens.valid       = ens.valid[kk]
-    ens.color       = ens.color[kk]
-    ens.label       = ens.label[kk]
-    ens.linewidth   = ens.linewidth[kk]
-    ens.markersize  = ens.markersize[kk]
+    ens.p           = ens.p[kk,:]
+    ens.s           = ens.s[kk,:]
 
     return
 end
@@ -175,20 +172,20 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
                                             colors=:tab10,linestyle=:solid,linewidth=1)
 
     # Set default style options
-    ens.color     = fill(colorant"Black",ens.nsim)
-    ens.linestyle = fill(linestyle,ens.nsim)
-    ens.linewidth = fill(linewidth,ens.nsim)
+    ens.s[:color]     = fill(colorant"Black",ens.nsim)
+    ens.s[:linestyle] = fill(linestyle,ens.nsim)
+    ens.s[:linewidth] = fill(linewidth,ens.nsim)
 
     if !isnothing(cat_col)
         # Determine unique values of distinguishing variable cat_col
-        vals = unique(ens.info[!,cat_col])
+        vals = unique(ens.p[!,cat_col])
     
         # Generate the colormap for these values
         col_map = cgrad(colors,vals);
     
         for (i,val) in enumerate(vals)
-            kk = findall(ens.info[!,cat_col] .== val)
-            ens.color[kk] .= col_map[i]
+            kk = findall(ens.p[!,cat_col] .== val)
+            ens.s[:color][kk] .= col_map[i]
         end
     
     end
@@ -198,7 +195,7 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
 
         # TO DO
 
-        vals = unique(ens.info[!,cat_style])
+        vals = unique(ens.p[!,cat_style])
     end
     
     if !isnothing(cat_width) 
@@ -206,7 +203,7 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
 
         # TO DO
 
-        vals = unique(ens.info[!,cat_width])
+        vals = unique(ens.p[!,cat_width])
     end
 
     return
@@ -215,11 +212,11 @@ end
 function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=1.0,newname=nothing)
 
     println("\nLoad ",varname," from ",filename)
-    println("  Ensemble path: ",ens.path)
-    println("  Number of simulations: ",size(ens.sim,1))
+    println("  Ensemble path: ",ens.ens_path)
+    println("  Number of simulations: ",size(ens.sim_path,1))
 
     # Get total number of sims 
-    ns  = size(ens.info,1)
+    ns  = ens.nsim
 
     # Set how the variable will be saved
     if isnothing(newname) 
@@ -227,37 +224,46 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
     end
 
     # Make an empty array to hold the variable 
-    ens.v[newname] = []
+    vars = YAXArray[]
 
     # Load time and variable from each simulation in ensemble 
     for k in 1:ns 
 
         # Get path of file of interest for reference sim
-        path_now = joinpath(ens.sim[k],filename)
+        path_now = joinpath(ens.sim_path[k],filename)
 
         # Open NetCDF file
         ds = NCDataset(path_now,"r")
 
         # Get variable if it is available
-        if !haskey(ds,varname)
-            error("load_var:: Error: variable not found in file.")
-        else 
-            var = Array(ds[varname]);
+        if !haskey(ds, varname)
+            close(ds)
+            error("load_var:: Error: variable $(varname) not found in file:\n    $(path_now)")
         end
+
+        # Read as YAXArray
+        var = YAXArray(ds[varname])
 
         # Close NetCDF file
         close(ds) 
         
         # Scale variable as desired 
-        var = var*scale; 
+        var .= var .* scale
 
-        # Store variable in ens output
-        push!(ens.v[newname],var)
-        
+        # Store variable in output array
+        push!(vars, var)
+
     end
 
+    # Stack along a new sim dimension
+    newdim = Dim{:sim}(1:ns)
+    stacked = stack(vars, newdim)
+
+    # Store in ensemble struct
+    ens.v[newname] = stacked
+
     return
-end 
+end
 
 function ens_stat(ens,varname::String,stat::Function)
 
@@ -270,56 +276,12 @@ function ens_stat(ens,varname::String,stat::Function)
     return vals
 end
 
-function ensemble_get_var_ND!(ens::ensemble,varname::String,filename::String)
-
-    println("\nLoad ",varname," from ",filename)
-    println("  Ensemble path: ",ens.path)
-    println("  Number of simulations: ",size(ens.sim,1))
-
-    # Set ref sim number to 1 for now
-    ref = 2
-
-    # Get total number of sims 
-    ns  = size(ens.info,1)
-
-    # Get path of file of interest for reference sim
-    path_now = joinpath(ens.sim[ref],filename)
-
-    # First load variable from reference sim
-    ds = NCDataset(path_now,"r")
-
-    #print(ds)
-
-    if (!haskey(ds,varname))
-        error("ensemble_get_var:: Error: variable not found in file.")
-    end
-
-    # Get dimensions of variable of interest 
-    v = ds[varname]
-
-    dims  = dimnames(v);
-    nd    = dimsize(v);
-
-    # Add extra dimension for sims
-    dims = (dims...,("sim",)...)
-    nd   = (nd...,(ns,)...)
-
-    time = ds["time"][:]*1e-3
-
-    # Define new ensemble arrays based on dimensions
-    var_out = fill(NaN, nd...)
-
-    # Close NetCDF file
-    close(ds) 
-
-    return ens 
-end 
-
 function ensemble_get_var_slice!(ens,vout::String,vin::String;time_slice=nothing,
                                  var_dim=nothing)
+    # TODO: Adjust for using YAXArrays with a time dimension!!
 
     # Get number of simulations
-    ns = size(ens.info,1);
+    ns = size(ens.p,1);
 
     # Generate output variable
     var_out = fill(NaN,ns);
@@ -358,37 +320,12 @@ function ensemble_get_var_slice!(ens,vout::String,vin::String;time_slice=nothing
 
 end
 
-function load_time_var(path,varname)
-    
-    if !isfile(path)
-        return ([NaN,NaN],[NaN,NaN])
-    end 
-
-    # First load variable from reference sim
-    ds = NCDataset(path,"r")
-
-    # Get time variable
-    time = ds["time"][:]*1e-3
-    
-    # Get variable itself
-    if !haskey(ds,varname)
-        error("load_var:: Error: variable not found in file.")
-    else 
-        var = ds[varname][:];
-    end 
-
-    # Close NetCDF file
-    close(ds) 
-
-    return (time,var)
-end
-
 #### Functions related to testing specific things 
 
 function ensemble_check(path; vars = nothing)
 
     # Load ensemble information
-    ens = ensemble_def(path);
+    ens = ensemble(path);
 
     # Initially only loading standard PD comparison statistics variables
     var_names = ["time","rmse_H","rmse_zsrf","rmse_uxy","rmse_uxy_log"];
@@ -405,7 +342,7 @@ function ensemble_check(path; vars = nothing)
     end
 
     # Generate a dataframe to hold output information in pretty format 
-    df = DataFrames.DataFrame(runid = ens.info[!,:runid]);
+    df = DataFrames.DataFrame(runid = ens.p[!,:runid]);
 
     for vname in var_names
         #print(vname,size(ens.v[vname]),"\n")
@@ -422,7 +359,7 @@ function ensemble_check(path; vars = nothing)
     # Print information to screen, first about
     # ensemble (info) and then variables of interest.
 
-    PrettyTables.pretty_table(ens.info, header = names(ens.info), crop = :horizontal)
+    PrettyTables.pretty_table(ens.p, header = names(ens.p), crop = :horizontal)
     PrettyTables.pretty_table(df, header = names(df), crop = :horizontal)
 
     return ens

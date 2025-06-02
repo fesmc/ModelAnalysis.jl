@@ -14,6 +14,7 @@ import PrettyTables
 import CSV 
 
 using JLD2
+using YAXArrays
 
 using CairoMakie
 using Colors
@@ -47,11 +48,7 @@ export ensemble_sort!
 export ensemble_linestyling!
 export ensemble_get_var!
 export ens_stat
-export ensemble_get_var_ND!
 export ensemble_get_var_slice!
-export load_time_var
-export calc_bifurcation
-export load_V_ice_from_H_ice
 export ensemble_check 
 
 include("Functions.jl")

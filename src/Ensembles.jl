@@ -22,10 +22,9 @@ mutable struct ensemble
     sim_path::Array{String}
     set::Array{Integer}
     nsim::Integer
-    p::DataFrames.DataFrame         # info/parameters
-    s::Dict{String,Any}             # styles
-    v::Dict{String,YAXArray}        # YAXArrays
-    ve::Dict{String,Any}            # Extra variables (non YAXArrays)
+    p::DataFrames.DataFrame             # info/parameters
+    s::DataFrames.DataFrame             # styles
+    v::Dict{Any,Any}                    # variables, preferrably YAXArrays
 end
 
 #valid::Any
@@ -80,16 +79,16 @@ function ensemble(path;sort_by::String="",runid::Int64=1)
         end
     end
 
-    style = Dict()
-    style[:valid] = fill(true,nsim)
-    style[:label] = fill("",nsim)
-    style[:color] = fill(colorant"Black",nsim)
-    style[:linewidth] = fill(1,nsim)
-    style[:linestyle] = fill(:solid,nsim)
-    style[:markersize] = fill(1,nsim) 
+    style = DataFrames.DataFrame()
+    style.valid = fill(true,nsim)
+    style.label = fill("",nsim)
+    style.color = fill(colorant"Black",nsim)
+    style.linewidth = fill(1,nsim)
+    style.linestyle = fill(:solid,nsim)
+    style.markersize = fill(1,nsim) 
 
     # Store all information for output in the ensemble object
-    ens = ensemble([path],sim_path,set,nsim,info,style,Dict(),Dict())
+    ens = ensemble([path],sim_path,set,nsim,info,style,Dict())
 
     if sort_by != ""
         ensemble_sort!(ens,sort_by)
@@ -119,7 +118,7 @@ function ensemble(paths::Array{String};sort_by::String="")
             append!(ens.sim_path,ens_now.sim_path)
             append!(ens.set,ens_now.set)
             
-            # Handle joining p DataFrames using vcat, in case
+            # Handle joining DataFrames using vcat, in case
             # columns are not the same...
             #append!(ens.p,ens_now.p)
             ens.p = vcat(ens.p,ens_now.p; cols=:union)
@@ -172,9 +171,9 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
                                             colors=:tab10,linestyle=:solid,linewidth=1)
 
     # Set default style options
-    ens.s[:color]     = fill(colorant"Black",ens.nsim)
-    ens.s[:linestyle] = fill(linestyle,ens.nsim)
-    ens.s[:linewidth] = fill(linewidth,ens.nsim)
+    ens.s.color     = fill(colorant"Black",ens.nsim)
+    ens.s.linestyle = fill(linestyle,ens.nsim)
+    ens.s.linewidth = fill(linewidth,ens.nsim)
 
     if !isnothing(cat_col)
         # Determine unique values of distinguishing variable cat_col
@@ -185,7 +184,7 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
     
         for (i,val) in enumerate(vals)
             kk = findall(ens.p[!,cat_col] .== val)
-            ens.s[:color][kk] .= col_map[i]
+            ens.s.color[kk] .= col_map[i]
         end
     
     end
@@ -224,7 +223,7 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
     end
 
     # Make an empty array to hold the variable 
-    vars = YAXArray[]
+    vars = []
 
     # Load time and variable from each simulation in ensemble 
     for k in 1:ns 
@@ -241,12 +240,12 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
             error("load_var:: Error: variable $(varname) not found in file:\n    $(path_now)")
         end
 
-        # Read as YAXArray
-        var = YAXArray(ds[varname])
+        # Read as YAXArray, but not lazy
+        var = readcubedata(YAXArray(ds[varname]))
 
         # Close NetCDF file
         close(ds) 
-        
+
         # Scale variable as desired 
         var .= var .* scale
 
@@ -255,12 +254,8 @@ function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=
 
     end
 
-    # Stack along a new sim dimension
-    newdim = Dim{:sim}(1:ns)
-    stacked = stack(vars, newdim)
-
     # Store in ensemble struct
-    ens.v[newname] = stacked
+    ens.v[newname] = vars
 
     return
 end

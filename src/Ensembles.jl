@@ -208,7 +208,7 @@ function ensemble_linestyling!(ens;cat_col=nothing,cat_style=nothing,cat_width=n
     return
 end
 
-function ensemble_get_var!(ens::ensemble,varname::String,filename::String;scale=1.0,newname=nothing)
+function ensemble_get_var!(ens::ensemble,filename::String,varname::String;newname=nothing,scale=1.0)
 
     println("\nLoad ",varname," from ",filename)
     println("  Ensemble path: ",ens.ens_path)

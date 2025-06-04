@@ -22,6 +22,7 @@ using ColorSchemes
 
 using Statistics
 using NCDatasets
+using NetCDF
 using FFTW
 
 
@@ -42,7 +43,8 @@ export Colorbar_logdiff!
 
 include("Ensembles.jl")
 
-export ensemble
+export AbstractEnsemble
+export Ensemble
 export ensemble_save
 export ensemble_sort!
 export ensemble_linestyling!

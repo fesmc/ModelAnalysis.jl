@@ -17,6 +17,8 @@
 #export load_time_var
 #export ensemble_check
 
+using NetCDF
+
 abstract type AbstractEnsemble end
 abstract type AbstractModelWeights end
 abstract type AbstractModelVariables end
@@ -93,7 +95,7 @@ function ensemble_init(path::String)
     if found_info
         # Ensemble, populate the run path by combing path with rundir
         for i in 1:N
-            run_path[i] = joinpath(path,string(info[i,"rundir"]))
+            run_path[i] = joinpath(path,string(p[i,"rundir"]))
         end
     else
         # Single simulation, set the simulation path equal to the path
@@ -269,7 +271,7 @@ function ensemble_get_var(ens::AbstractEnsemble,filename::String,varname::String
         path_now = joinpath(ens.run_path[k],filename)
 
         # Open NetCDF file as a set of YAXArrays
-        ds = open_dataset(path_now)
+        ds = open_dataset(path_now,driver=:netcdf)
 
         # Get variable if it is available
         if !haskey(ds, varname)

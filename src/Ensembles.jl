@@ -1,23 +1,24 @@
 
-#import DataFrames 
-#import PrettyTables
-#import CSV 
-#import YAXArrays
+module Ensembles
 
-#using NCDatasets
-#using Statistics
+import DataFrames 
+import PrettyTables
+import CSV
 
-#export ensemble
-#export ensemble_def
-#export ensemble_sort!
-#export ensemble_get_var!
-#export ens_stat
-#export ensemble_get_var_ND!
-#export ensemble_get_var_slice!
-#export load_time_var
-#export ensemble_check
-
+using JLD2
+using YAXArrays
 using NetCDF
+using Statistics
+
+export AbstractEnsemble
+export Ensemble
+export ensemble_save
+export ensemble_sort!
+export ensemble_linestyling!
+export ensemble_get_var!
+export ens_stat
+export ensemble_get_var_slice!
+export ensemble_check 
 
 abstract type AbstractEnsemble end
 abstract type AbstractModelWeights end
@@ -51,13 +52,6 @@ end
 #     v::Dict{Union{String,Symbol},Any}  # variables, preferrably YAXArrays or vectors of YAXArrays
 #     c::Union{Nothing, ClimberModelRun, Vector{ClimberModelRun}}  # new field
 # end
-
-#valid::Any
-#color::Any
-#label::Any
-#linewidth::Any
-#linestyle::Any
-#markersize::Any
 
 function ensemble_init(path::String)   
     
@@ -407,3 +401,5 @@ function ensemble_check(path::String; vars = nothing)
 
     return ens
 end
+
+end # module

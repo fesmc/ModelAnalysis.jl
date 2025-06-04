@@ -21,10 +21,8 @@ using Colors
 using ColorSchemes
 
 using Statistics
-using NCDatasets
 using NetCDF
 using FFTW
-
 
 today_prefix = string(Dates.today())*'_';
 export today_prefix;
@@ -42,9 +40,11 @@ export heatmap_ice2D_logdiff!
 export Colorbar_logdiff!
 
 include("Ensembles.jl")
+using .Ensembles    # Needed so we can export names from sub-modules at the top-level
 
 export AbstractEnsemble
 export Ensemble
+
 export ensemble_save
 export ensemble_sort!
 export ensemble_linestyling!
@@ -65,4 +65,4 @@ greetme() = print("Hello World! Revised: 2025-03-15 09:21")
 
 export greetme
 
-end # module ModelAnalysis
+end # module

@@ -10,58 +10,56 @@ using YAXArrays
 using NetCDF
 using Statistics
 
+using Colors
+using ColorSchemes
+
+export AbstractModel
+export AbstractModelVariables
 export AbstractEnsemble
+export AbstractEnsembleWeights
 export Ensemble
+export ensemble_init
 export ensemble_save
 export ensemble_sort!
 export ensemble_linestyling!
 export ensemble_get_var!
 export ens_stat
-export ensemble_get_var_slice!
-export ensemble_check 
+export ensemble_members
+export collect_variable
 
-abstract type AbstractEnsemble end
-abstract type AbstractModelWeights end
+abstract type AbstractModel end
 abstract type AbstractModelVariables end
 
+abstract type AbstractEnsemble end
+abstract type AbstractEnsembleWeights end
+
 mutable struct Ensemble <: AbstractEnsemble 
-    path::Vector{String}
-    run_path::Vector{String}
-    set::Vector{Integer}
     N::Integer
-    p::DataFrames.DataFrame             # info/parameters
-    s::DataFrames.DataFrame             # styles
-    v::Dict{Union{String,Symbol},Any}                    # variables, preferrably YAXArrays or vectors of YAXArrays
-    #w::AbstractModelWeights
+    path::Vector{String}                        # ensemble base path(s)
+    mpath::Vector{String}                       # member path (path to each member of ensemble)
+    set::Vector{Integer}                        # which set did member come from (corresponding to ensemble base paths)
+    p::DataFrames.DataFrame                     # info/parameters
+    s::DataFrames.DataFrame                     # styles
+    w::Union{Array,AbstractEnsembleWeights}     # Ensemble weights
+
+    # variables, preferrably each variable a YAXArray with one dimension N,
+    # or a vector of length N of YAXArrays
+    v::Dict{Union{String,Symbol},Any}
+
+    # vector of individual "ensemble members" defined by a custom AbstractModel struct
+    m::Vector{AbstractModel}
+
 end
 
-# mutable struct ClimberModelRun
-#     path::String
-#     p::DataFrames.DataFrame             # info/parameters
-#     atm::Dict{Union{String,Symbol},Any}                    # variables, preferrably YAXArrays
-#     ocn::Dict{Union{String,Symbol},Any}                    # variables, preferrably YAXArrays
-# end
-
-# mutable struct ClimberEnsemble <: AbstractEnsemble
-#     path::Vector{String}
-#     run_path::Vector{String}
-#     set::Vector{Integer}
-#     N::Integer
-#     p::DataFrames.DataFrame             # info/parameters
-#     s::DataFrames.DataFrame             # styles
-#     v::Dict{Union{String,Symbol},Any}  # variables, preferrably YAXArrays or vectors of YAXArrays
-#     c::Union{Nothing, ClimberModelRun, Vector{ClimberModelRun}}  # new field
-# end
-
-function ensemble_init(path::String)   
+function ensemble_init(ens_path::String;sort_by::String="",verbose=true)   
     
-    # Check if path exists
-    if !ispath(path)
-        error(string("Ensemble::ensemble_init:: Error: path not found: ",path))
+    # Check if ens_path exists
+    if !ispath(ens_path)
+        error(string("Ensemble::ensemble_init:: Error: path not found: ",ens_path))
     end
 
     # Define the info filename for an ensemble of simulations
-    fname = joinpath(path,"info.txt")
+    fname = joinpath(ens_path,"info.txt")
 
     # Read the ensemble info table into a DataFrame format, if it exists
     if isfile(fname)
@@ -71,7 +69,7 @@ function ensemble_init(path::String)
     else 
         # This is probably a single simulation, so no info file is available.
         # Generate something simple.
-        rundir = splitpath(path)[end]
+        rundir = splitpath(ens_path)[end]
         p = DataFrames.DataFrame("runid"=>1,"rundir"=>rundir)
         found_info = false
     end
@@ -83,18 +81,19 @@ function ensemble_init(path::String)
     
     # Initialize an empty array of the right length
     set = fill(1,N)
-    run_path = fill("",N)
+    path = fill(ens_path,N)
+    mpath = fill("",N)
     
     # Populate the array
     if found_info
         # Ensemble, populate the run path by combing path with rundir
         for i in 1:N
-            run_path[i] = joinpath(path,string(p[i,"rundir"]))
+            mpath[i] = joinpath(path[i],string(p[i,"rundir"]))
         end
     else
-        # Single simulation, set the simulation path equal to the path
+        # Single simulation, set the simulation path equal to the ensemble path
         for i in 1:N
-            run_path[i] = path
+            mpath[i] = path[i]
         end
     end
 
@@ -106,83 +105,102 @@ function ensemble_init(path::String)
     s.linestyle = fill(:solid,N)
     s.markersize = fill(1,N) 
 
-    return run_path, set, N, p, s
-
-end
-
-function Ensemble(path::String;sort_by::String="")   
-    
-    run_path, set, N, p, s = ensemble_init(path)
-
-    # Store all information for output in the ensemble object
-    ens = Ensemble([path],run_path,set,N,p,s,Dict())
-
+    # Sort the ensemble by a given parameter if desired
     if sort_by != ""
-        ensemble_sort!(ens,sort_by)
+        kk = sortperm(p[!,sort_by])
+        path  = path[kk]
+        mpath = mpath[kk]
+        set   = set[kk]
+        p     = p[kk,:]
+        s     = s[kk,:]
     end
-     
-    return ens
+    
+    if verbose
+        println("Defined ensemble, number of members: ",N)
+        println("Ensemble path: $ens_path")
+    end
+
+    return N, path, mpath, set, p, s
+
 end
 
-function Ensemble(paths::Array{String};sort_by::String="")   
+function ensemble_init(ens_paths::Vector{String};sort_by::String="",verbose=true)   
     
-    # Define the ensemble object based on first ensemble set of interest
-    ens = Ensemble(paths[1])
+    # Define the ensemble components based on first ensemble set of interest
+    _, path, mpath, set, p, s = ensemble_init(ens_paths[1];verbose=false)
 
     # Define info array for entire list 
-    for j = 2:size(paths,1)
+    for j = 2:size(ens_paths,1)
 
-        ens_now = Ensemble(paths[j])
+        _, path1, mpath1, set1, p1, s1 = ensemble_init(ens_paths[j];verbose=false)
+        set .= j 
+
+        append!(path,path1)
+        append!(mpath,mpath1)
+        append!(set,set1)
         
-        ens_now.set .= j 
-
-        if j == 1
-            ens = deepcopy(ens_now)
-        else
-            
-            append!(ens.path,ens_now.path)
-            append!(ens.run_path,ens_now.run_path)
-            append!(ens.set,ens_now.set)
-            
-            # Handle joining DataFrames using vcat, in case
-            # columns are not the same...
-            #append!(ens.p,ens_now.p)
-            ens.p = vcat(ens.p,ens_now.p; cols=:union)
-            ens.s = vcat(ens.s,ens_now.s; cols=:union)
-            
-        end
-
+        # Handle joining DataFrames using vcat, in case columns are not the same...
+        p = vcat(p,p1; cols=:union)
+        s = vcat(s,s1; cols=:union)
     end
     
     # Update the total number of simulations and number of ensemble sets 
-    ens.N = DataFrames.nrow(ens.p) 
+    N = DataFrames.nrow(p) 
 
-    println("Loaded ensemble, number of simulations: ",ens.N)
-    println("Ensemble path(s):")
-    for j = 1:size(paths,1)
-        println("  ",paths[j])
-    end
-
+    # Sort the ensemble by a given parameter if desired
     if sort_by != ""
-        ensemble_sort!(ens,sort_by)
+        kk = sortperm(p[!,sort_by])
+        path  = path[kk]
+        mpath = mpath[kk]
+        set   = set[kk]
+        p     = p[kk,:]
+        s     = s[kk,:]
     end
     
+    if verbose
+        println("Defined ensemble, number of members: ",N)
+        println("Ensemble path(s):")
+        for j = 1:size(ens_paths,1)
+            println("  ",ens_paths[j])
+        end
+    end
+
+    return N, path, mpath, set, p, s
+end
+
+function Ensemble(ens_path::String;sort_by::String="")   
+    
+    N, path, mpath, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
+
+    # Store all information for output in the ensemble object
+    ens = Ensemble(N,path,mpath,set,p,s,Vector(),Dict(),[])
+
+    return ens
+end
+
+function Ensemble(ens_path::Vector{String};sort_by::String="")   
+    
+    N, path, mpath, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
+
+    # Store all information for output in the ensemble object
+    ens = Ensemble(N,path,mpath,set,p,s,Vector(),Dict(),[])
+
     return ens
 end
 
 function ensemble_sort!(ens::AbstractEnsemble,sort_by::String)
 
     kk = sortperm(ens.p[!,sort_by])
-    ens.run_path    = ens.run_path[kk]
-    ens.set         = ens.set[kk]
-    ens.p           = ens.p[kk,:]
-    ens.s           = ens.s[kk,:]
+    ens.mpath = ens.mpath[kk]
+    ens.set   = ens.set[kk]
+    ens.p     = ens.p[kk,:]
+    ens.s     = ens.s[kk,:]
 
-    # Add sorting of each entry of Dictionary v, entries of which should be vectors of length N
-    if length(ens.v) != 0
-        warning("""Ensemble .v component is not empty, but sorting of v is not yet implemented.
-        In this case, the newly sorted ensemble metadata will not match the order of the v entries.
-        For now, ensemble sorting should be applied before loading any variables.""")
+    # Add sorting of each entry of Dictionaries v and vector m, entries of which should be vectors of length N
+    if length(ens.v) != 0 | length(ens.m) != 0
+        warning("""Ensemble .v or .m component is not empty, but sorting of variables is not yet implemented.
+        In this case, the newly sorted ensemble metadata will not match the order of the variable entries.
+        For now, ensemble sorting should be applied before loading any variables or members.""")
     end
 
     return
@@ -245,7 +263,7 @@ function ensemble_get_var(ens::AbstractEnsemble,filename::String,varname::String
 
     println("\nLoad ",varname," from ",filename)
     println("  Ensemble path: ",ens.path)
-    println("  Number of simulations: ",size(ens.run_path,1))
+    println("  Number of members: ",size(ens.mpath,1))
 
     # Get total number of ensemble members 
     N  = ens.N
@@ -262,7 +280,7 @@ function ensemble_get_var(ens::AbstractEnsemble,filename::String,varname::String
     for k in 1:N 
 
         # Get path of file of interest for reference sim
-        path_now = joinpath(ens.run_path[k],filename)
+        path_now = joinpath(ens.mpath[k],filename)
 
         # Open NetCDF file as a set of YAXArrays
         ds = open_dataset(path_now,driver=:netcdf)
@@ -275,10 +293,7 @@ function ensemble_get_var(ens::AbstractEnsemble,filename::String,varname::String
 
         # Read a YAXArray, but load it into memory (not lazy)
         var = readcubedata(ds[varname])
-
-        # Close NetCDF file
-        #close(ds) 
-
+        
         # Scale variable as desired 
         var .= var .* scale
 
@@ -313,93 +328,39 @@ function ens_stat(var::Vector{Any},stat::Function)
     return vals
 end
 
-function ensemble_get_var_slice!(ens::AbstractEnsemble,vout::String,vin::String;time_slice=nothing,
-                                 var_dim=nothing)
-    # TODO: Adjust for using YAXArrays with a time dimension!!
+# Function to specifically return the ensemble members struct itself
+# (defined generally for the AbstractModel, but can be custom defined for specific models)
+ensemble_members(ens::AbstractEnsemble) = ens.m
 
-    # Get number of ensemble members
-    N = size(ens.p,1);
+"""
+    collect_variable(ens::AbstractEnsemble, domain::Symbol, var::Symbol; default=missing)
 
-    # Generate output variable
-    var_out = fill(NaN,N);
+Collects a specified variable `var` from the given `domain` across all model members in an ensemble `ens`.
 
-    # Get variable for each ensemble member
-    for k = 1:N
+# Arguments
+- `ens::AbstractEnsemble`: An ensemble object containing multiple model members.
+- `domain::Symbol`: The domain key within each model run (e.g., `:atm`, `:ocn`) from which to extract the variable.
+- `var::Symbol`: The variable key to collect (e.g., `:t2m`, `:sst`).
+- `default`: Optional keyword argument specifying the value to use if the variable `var` is not present in a particular model run’s domain dictionary. Defaults to `missing`.
 
-        # Load variable from ensemble object 
-        time = ens.v["time"][k]
-        var  = ens.v[vin][k] 
+# Returns
+- A vector where each element corresponds to the value of `var` in the specified `domain` for each model run in the ensemble.
+  If a model run does not contain the variable, the `default` value is used instead.
 
-        # Get time index of interest
-        if isnothing(time_slice)
-            time_now = maximum(time)
-        else
-            time_now = time_slice 
-        end 
-
-        tmp = findmin(abs.(time .- time_now))
-        nt  = tmp[2]
-        
-        # Populate output variable
-        var_out[k] = var[nt];
-
-    end 
-
-    if isnothing(var_dim)
-        out = var_out 
-    else 
-        out = [var_dim var_out]
-    end
-
-    ens.v[vout] = out 
-
-    return
-
-end
-
-#### Functions related to testing specific things 
-
-function ensemble_check(path::String; vars = nothing)
-
-    # Load ensemble information
-    ens = Ensemble(path);
-
-    # Initially only loading standard PD comparison statistics variables
-    var_names = ["time","rmse_H","rmse_zsrf","rmse_uxy","rmse_uxy_log"];
-
-    # Add any other variables of interest from arguments
-    if vars != nothing
-        push!(var_names,vars);
-    end 
-
-    # Loop over all variable names of interest
-    # (should be 1D time series, for now!)
-    for vname in var_names
-        ensemble_get_var!(ens,"yelmo2D.nc",vname);
-    end
-
-    # Generate a dataframe to hold output information in pretty format 
-    df = DataFrames.DataFrame(runid = ens.p[!,:runid]);
-
-    for vname in var_names
-        #print(vname,size(ens.v[vname]),"\n")
-        if ndims(ens.v[vname]) == 1
-            v = [ens.v[vname][i][end] for i in 1:length(ens.v[vname])];
-            DataFrames.insertcols!(df, vname => v )
-        else
-            print("ensemble_check:: Error: this function should be used with time series variables")
-            print("vname = ", vname)
-            return
-        end
-    end
-
-    # Print information to screen, first about
-    # ensemble (info) and then variables of interest.
-
-    PrettyTables.pretty_table(ens.p, header = names(ens.p), crop = :horizontal)
-    PrettyTables.pretty_table(df, header = names(df), crop = :horizontal)
-
-    return ens
+# Example
+```julia
+t2m_values = collect_variable(ensemble, :atm, :t2m)
+sst_values = collect_variable(ensemble, :ocn, :sst; default=nothing)
+"""
+function collect_variable(ens::AbstractEnsemble,
+                          domain::Symbol, var::Symbol;
+                          default = missing)
+    
+    members = ensemble_members(ens)
+    [ let dom = getfield(member, domain)
+          haskey(dom, var) ? dom[var] : default
+      end
+      for member in members ]
 end
 
 end # module

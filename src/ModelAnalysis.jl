@@ -53,6 +53,12 @@ export ens_stat
 export ensemble_get_var_slice!
 export ensemble_check 
 
+include("ClimberEnsembles.jl")
+using .ClimberEnsembles
+
+export ClimberModel
+export ClimberEnsemble
+
 include("Functions.jl")
 
 export calc_bifurcation

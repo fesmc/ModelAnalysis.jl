@@ -27,18 +27,6 @@ using FFTW
 today_prefix = string(Dates.today())*'_';
 export today_prefix;
 
-include("Plots.jl")
-
-export plt_prefix;
-export make_axis_ice2D;
-export gencol_vel;
-export heatmap_ice2D_bathymetry!
-export contour_ice2D_topo!
-export contour_ice2D_ice!
-export heatmap_ice2D!
-export heatmap_ice2D_logdiff!
-export Colorbar_logdiff!
-
 include("Ensembles.jl")
 using .Ensembles    # Needed so we can export names from sub-modules at the top-level
 
@@ -59,6 +47,18 @@ using .ClimberEnsembles
 export ClimberModel
 export ClimberEnsemble
 
+include("Plots.jl")
+
+export plt_prefix;
+export make_axis_ice2D;
+export gencol_vel;
+export heatmap_ice2D_bathymetry!
+export contour_ice2D_topo!
+export contour_ice2D_ice!
+export heatmap_ice2D!
+export heatmap_ice2D_logdiff!
+export Colorbar_logdiff!
+
 include("Functions.jl")
 
 export calc_bifurcation
@@ -66,9 +66,5 @@ export load_V_ice_from_H_ice
 export dominant_period
 
 ### Additional functions ###
-
-greetme() = print("Hello World! Revised: 2025-03-15 09:21")
-
-export greetme
 
 end # module

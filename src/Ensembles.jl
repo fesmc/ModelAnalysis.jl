@@ -1,8 +1,7 @@
 
 module Ensembles
 
-import DataFrames 
-import PrettyTables
+import DataFrames
 import CSV
 
 using JLD2
@@ -207,7 +206,7 @@ function ensemble_sort!(ens::AbstractEnsemble,sort_by::String)
 end
 
 # Save an ensemble to a file using JLD2 but give it a user-defined name for loading later
-function ensemble_save(ens::AbstractEnsemble,filename::String,name::String)
+function ensemble_save(filename::String,ens::AbstractEnsemble,name::String)
 
     #@save fileout ens
     JLD2.jldopen(filename, "w") do file

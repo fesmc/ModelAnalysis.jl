@@ -104,4 +104,3 @@ ensemble_save("output/ensemble_exp1.jld2", ens, "ens")
 * The type `AbstractModel` must be defined elsewhere in your codebase to suit your model structure.
 
 ---
-

@@ -6,6 +6,7 @@ import CSV
 
 using JLD2
 using YAXArrays
+using NCDatasets
 using NetCDF
 using Statistics
 
@@ -254,7 +255,7 @@ function ensemble_linestyling!(ens::AbstractEnsemble;cat_col=nothing,cat_style=n
     return
 end
 
-function ensemble_get_var(paths,filename::String,varname::String;scale=1.0)::Vector{Any}
+function ensemble_get_var(paths::Vector{String},filename::String,varname::String;scale=1.0)::Vector{Any}
 
     # Get total number of ensemble members
     N = size(paths,1)
@@ -271,23 +272,51 @@ function ensemble_get_var(paths,filename::String,varname::String;scale=1.0)::Vec
         # Get path of file of interest for reference sim
         path_now = joinpath(paths[k],filename)
 
-        # Open NetCDF file as a set of YAXArrays
-        ds = open_dataset(path_now,driver=:netcdf)
-
-        # Get variable if it is available
+        # Check if variable exists 
+        # (use NCDataset interface due to possible error with YAXArrays on _ts files)
+        ds = NCDataset(path_now)
         if !haskey(ds, varname)
-            close(ds)
+            NetCDF.close(ds)
             error("load_var:: Error: variable $(varname) not found in file:\n    $(path_now)")
         end
+        NCDatasets.close(ds)
 
-        # Read a YAXArray, but load it into memory (not lazy)
-        var = readcubedata(ds[varname])
-        
+        var_now = nothing  # Declare in outer scope
+
+        try
+            # Try to open with YAXArrays (lazy by default)
+            ds = open_dataset(path_now, driver = :netcdf)
+
+            # Read a YAXArray and load it into memory
+            var_now = readcubedata(ds[varname])
+
+        catch err
+            # Build a YAXArray manually
+            #@warn "YAXArrays failed: falling back to NCDataset" err
+
+            # Open with NCDatasets.jl
+            ds_nc = NCDataset(path_now)
+
+            # Extract the variable data
+            data = ds_nc[varname][:]
+            dnames = Symbol.(NCDatasets.dimnames(ds_nc[varname]))  # Tuple of dimension names
+            axes = [ds_nc[d][:] for d in dnames]
+
+            # Create Dim objects
+            dims = Tuple(Dim{name}(axis) for (name, axis) in zip(dnames, axes))
+
+            # Wrap into YAXArray
+            var_now = YAXArray(dims,data)
+
+            # Close file connection
+            NCDatasets.close(ds_nc)
+        end
+
         # Scale variable as desired 
-        var .= var .* scale
-
+        var_now .= var_now .* scale
+        
         # Store variable in output array
-        push!(vars, var)
+        push!(vars, var_now)
 
     end
 

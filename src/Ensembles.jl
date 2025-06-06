@@ -34,8 +34,7 @@ abstract type AbstractEnsembleWeights end
 
 mutable struct Ensemble <: AbstractEnsemble 
     N::Integer
-    path::Vector{String}                        # ensemble base path(s)
-    mpath::Vector{String}                       # member path (path to each member of ensemble)
+    path::Vector{String}                        # member path (path to each member of ensemble)
     set::Vector{Integer}                        # which set did member come from (corresponding to ensemble base paths)
     p::DataFrames.DataFrame                     # info/parameters
     s::DataFrames.DataFrame                     # styles
@@ -44,10 +43,6 @@ mutable struct Ensemble <: AbstractEnsemble
     # variables, preferrably each variable a YAXArray with one dimension N,
     # or a vector of length N of YAXArrays
     v::Dict{Union{String,Symbol},Any}
-
-    # vector of individual "ensemble members" defined by a custom AbstractModel struct
-    m::Vector{AbstractModel}
-
 end
 
 function ensemble_init(ens_path::String;sort_by::String="",verbose=true)   
@@ -80,19 +75,18 @@ function ensemble_init(ens_path::String;sort_by::String="",verbose=true)
     
     # Initialize an empty array of the right length
     set = fill(1,N)
-    path = fill(ens_path,N)
-    mpath = fill("",N)
+    path = fill("",N)
     
     # Populate the array
     if found_info
         # Ensemble, populate the run path by combing path with rundir
         for i in 1:N
-            mpath[i] = joinpath(path[i],string(p[i,"rundir"]))
+            path[i] = joinpath(ens_path,string(p[i,"rundir"]))
         end
     else
         # Single simulation, set the simulation path equal to the ensemble path
         for i in 1:N
-            mpath[i] = path[i]
+            path[i] = ens_path
         end
     end
 
@@ -104,14 +98,17 @@ function ensemble_init(ens_path::String;sort_by::String="",verbose=true)
     s.linestyle = fill(:solid,N)
     s.markersize = fill(1,N) 
 
+    # Add a weights vector too
+    w = fill(1.0,N)
+
     # Sort the ensemble by a given parameter if desired
     if sort_by != ""
         kk = sortperm(p[!,sort_by])
         path  = path[kk]
-        mpath = mpath[kk]
         set   = set[kk]
         p     = p[kk,:]
         s     = s[kk,:]
+        w     = w[kk]
     end
     
     if verbose
@@ -119,28 +116,26 @@ function ensemble_init(ens_path::String;sort_by::String="",verbose=true)
         println("Ensemble path: $ens_path")
     end
 
-    return N, path, mpath, set, p, s
+    return N, path, set, p, s, w
 
 end
 
-function ensemble_init(ens_paths::Vector{String};sort_by::String="",verbose=true)   
+function ensemble_init(ens_path::Vector{String};sort_by::String="",verbose=true)   
     
     # Define the ensemble components based on first ensemble set of interest
-    _, path, mpath, set, p, s = ensemble_init(ens_paths[1];verbose=false)
+    _, path, set, p, s, w = ensemble_init(ens_path[1];verbose=false)
 
     # Define info array for entire list 
-    for j = 2:size(ens_paths,1)
+    for j = 2:size(ens_path,1)
 
-        _, path1, mpath1, set1, p1, s1 = ensemble_init(ens_paths[j];verbose=false)
+        _, path1, set1, p1, s1, w1 = ensemble_init(ens_path[j];verbose=false)
         set .= j 
 
         append!(path,path1)
-        append!(mpath,mpath1)
         append!(set,set1)
-        
-        # Handle joining DataFrames using vcat, in case columns are not the same...
-        p = vcat(p,p1; cols=:union)
-        s = vcat(s,s1; cols=:union)
+        p = vcat(p,p1; cols=:union)     # Handle joining DataFrames using vcat, in case columns are not the same...
+        s = vcat(s,s1; cols=:union)     # Handle joining DataFrames using vcat, in case columns are not the same...
+        append!(w,w1)
     end
     
     # Update the total number of simulations and number of ensemble sets 
@@ -150,39 +145,39 @@ function ensemble_init(ens_paths::Vector{String};sort_by::String="",verbose=true
     if sort_by != ""
         kk = sortperm(p[!,sort_by])
         path  = path[kk]
-        mpath = mpath[kk]
         set   = set[kk]
         p     = p[kk,:]
         s     = s[kk,:]
+        w     = w[kk]
     end
     
     if verbose
         println("Defined ensemble, number of members: ",N)
         println("Ensemble path(s):")
-        for j = 1:size(ens_paths,1)
-            println("  ",ens_paths[j])
+        for j = 1:size(ens_path,1)
+            println("  ",ens_path[j])
         end
     end
 
-    return N, path, mpath, set, p, s
+    return N, path, set, p, s, w
 end
 
 function Ensemble(ens_path::String;sort_by::String="")   
     
-    N, path, mpath, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
+    N, path, set, p, s, w = ensemble_init(ens_path;sort_by=sort_by)
 
     # Store all information for output in the ensemble object
-    ens = Ensemble(N,path,mpath,set,p,s,Vector(),Dict(),[])
+    ens = Ensemble(N,path,set,p,s,w,Dict())
 
     return ens
 end
 
 function Ensemble(ens_path::Vector{String};sort_by::String="")   
     
-    N, path, mpath, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
+    N, path, set, p, s, w = ensemble_init(ens_path;sort_by=sort_by)
 
     # Store all information for output in the ensemble object
-    ens = Ensemble(N,path,mpath,set,p,s,Vector(),Dict(),[])
+    ens = Ensemble(N,path,set,p,s,w,Dict())
 
     return ens
 end
@@ -190,11 +185,12 @@ end
 function ensemble_sort!(ens::AbstractEnsemble,sort_by::String)
 
     kk = sortperm(ens.p[!,sort_by])
-    ens.mpath = ens.mpath[kk]
-    ens.set   = ens.set[kk]
-    ens.p     = ens.p[kk,:]
-    ens.s     = ens.s[kk,:]
-
+    ens.path = ens.path[kk]
+    ens.set  = ens.set[kk]
+    ens.p    = ens.p[kk,:]
+    ens.s    = ens.s[kk,:]
+    ens.w    = ens.w[kk]
+    
     # Add sorting of each entry of Dictionaries v and vector m, entries of which should be vectors of length N
     if length(ens.v) != 0 | length(ens.m) != 0
         warning("""Ensemble .v or .m component is not empty, but sorting of variables is not yet implemented.
@@ -258,19 +254,13 @@ function ensemble_linestyling!(ens::AbstractEnsemble;cat_col=nothing,cat_style=n
     return
 end
 
-function ensemble_get_var(ens::AbstractEnsemble,filename::String,varname::String;newname=nothing,scale=1.0)::Vector{Any}
+function ensemble_get_var(paths,filename::String,varname::String;scale=1.0)::Vector{Any}
 
-    println("\nLoad ",varname," from ",filename)
-    println("  Ensemble path: ",ens.path)
-    println("  Number of members: ",size(ens.mpath,1))
+    # Get total number of ensemble members
+    N = size(paths,1)
 
-    # Get total number of ensemble members 
-    N  = ens.N
-
-    # Set how the variable will be saved
-    if isnothing(newname) 
-        newname = varname
-    end
+    println("\nLoad $varname from $filename")
+    println("  Number of members: $N")
 
     # Make an empty array to hold the variable 
     vars = []
@@ -279,7 +269,7 @@ function ensemble_get_var(ens::AbstractEnsemble,filename::String,varname::String
     for k in 1:N 
 
         # Get path of file of interest for reference sim
-        path_now = joinpath(ens.mpath[k],filename)
+        path_now = joinpath(paths[k],filename)
 
         # Open NetCDF file as a set of YAXArrays
         ds = open_dataset(path_now,driver=:netcdf)
@@ -307,9 +297,14 @@ end
 
 function ensemble_get_var!(ens::AbstractEnsemble,filename::String,varname::String;newname=nothing,scale=1.0)
 
+    # Set how the variable will be saved
+    if isnothing(newname) 
+        newname = varname
+    end
+
     # Load the vector of ensemble data
-    vars = ensemble_get_var(ens,filename,varname;newname)
-    
+    vars = ensemble_get_var(ens.path,filename,varname;scale=scale)
+        
     # Store in ensemble struct
     ens.v[newname] = vars
 
@@ -330,6 +325,7 @@ end
 # Function to specifically return the ensemble members struct itself
 # (defined generally for the AbstractModel, but can be custom defined for specific models)
 ensemble_members(ens::AbstractEnsemble) = ens.m
+ensemble_members(ens::Ensemble) = error("This ensemble type does not define explicit members.")
 
 """
     collect_variable(ens::AbstractEnsemble, domain::Symbol, var::Symbol; default=missing)

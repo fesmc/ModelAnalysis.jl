@@ -30,22 +30,27 @@ export today_prefix;
 include("Ensembles.jl")
 using .Ensembles    # Needed so we can export names from sub-modules at the top-level
 
-export AbstractEnsemble
+#export AbstractModel
+#export AbstractModelVariables
+#export AbstractEnsemble
+#export AbstractEnsembleWeights
 export Ensemble
-
+export ensemble_init
 export ensemble_save
 export ensemble_sort!
 export ensemble_linestyling!
 export ensemble_get_var!
 export ens_stat
-export ensemble_get_var_slice!
-export ensemble_check 
+export ensemble_members
+export collect_variable
+
 
 include("ClimberEnsembles.jl")
 using .ClimberEnsembles
 
 export ClimberModel
 export ClimberEnsemble
+export ensemble_get_var!
 
 include("Plots.jl")
 

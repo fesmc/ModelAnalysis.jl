@@ -17,12 +17,18 @@ using JLD2
 using YAXArrays
 
 using CairoMakie
+using GeoMakie
+
 using Colors
 using ColorSchemes
 
 using Statistics
 using NetCDF
 using FFTW
+
+using NaturalEarth
+using GLM
+using SkipNan
 
 today_prefix = string(Dates.today())*'_';
 export today_prefix;
@@ -55,6 +61,11 @@ export ensemble_get_var!
 include("Plots.jl")
 
 export plt_prefix;
+
+export ne_110m_coastline
+export add_coastlines!
+export add_coastlines_0_360!
+
 export make_axis_ice2D;
 export gencol_vel;
 export heatmap_ice2D_bathymetry!

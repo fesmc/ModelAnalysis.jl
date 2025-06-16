@@ -45,6 +45,6 @@ Example usage of Ensembles.jl with Yelmo model output (1D and 2D):
     ensemble_get_var!(ens,"yelmo2D.nc","yc")
     ensemble_get_var!(ens,"yelmo2D.nc","H_ice")
 
-    # Save to output file
-    ensemble_save("ensemble01.jld2",ens)
+    # Save to output file (optionally setting a new name for the ensemble object `ens01` for when it is loaded into memory again)
+    ensemble_save("ensemble01.jld2",ens,"ens01")
 ```

@@ -5,10 +5,12 @@ module ModelAnalysis
 # then, in julia:
 #   ]
 #   activate ~/.JuliaEnvironments/myanalysis
-#   add Dates, DataFrames, PrettyTables, CSV, Printf, SkipNan, Statistics, FFTW
+#   add Dates, DataFrames, PrettyTables, CSV
+#   add Printf, SkipNan, Statistics, GLM, FFTW
+#   add Interpolations, DSP, ImageFiltering
 #   add JLD2, YAXArrays, NCDatasets, NetCDF
 #   add CairoMakie, GeoMakie, Colors, ColorSchemes
-#   add NaturalEarth, GLM
+#   add NaturalEarth
 #
 # Make sure to add the following line to the top of any scripts: 
 #   import Pkg; Pkg.activate("$(homedir())/.JuliaEnvironments/myanalysis")
@@ -23,7 +25,11 @@ import SkipNan; using SkipNan
 
 # Analysis packages
 import Statistics; using Statistics
+import GLM; using GLM
 import FFTW
+import Interpolations
+import DSP
+import ImageFiltering
 
 # Data management packages
 import JLD2
@@ -39,27 +45,31 @@ import ColorSchemes; using ColorSchemes
 
 # Dataset packages
 import NaturalEarth; using NaturalEarth
-import GLM; using GLM
 
 # Make imported libraries available when ModelAnalysis.jl is used.
 export Dates, DataFrames, PrettyTables, CSV
 export Prinf, SkipNan
-export Statistics, FFTW
+export Statistics, GLM, FFTW
+export Interpolations, DSP, ImageFiltering
 export JLD2, YAXArrays, NCDatasets, NetCDF
 export CairoMakie, GeoMakie, Colors, ColorSchemes
 export NaturalEarth
-export GLM
 
 today_prefix = string(Dates.today())*'_';
 export today_prefix;
 
+#####
+##### Include modules and export functions to use at top level
+#####
+
+# Ensembles
 include("Ensembles.jl")
 using .Ensembles    # Needed so we can export names from sub-modules at the top-level
 
-#export AbstractModel
-#export AbstractModelVariables
-#export AbstractEnsemble
-#export AbstractEnsembleWeights
+export AbstractModel
+export AbstractModelVariables
+export AbstractEnsemble
+export AbstractEnsembleWeights
 export Ensemble
 export ensemble_init
 export ensemble_save
@@ -70,13 +80,17 @@ export ens_stat
 export ensemble_members
 export collect_variable
 
-
+# ClimberEnsembles
 include("ClimberEnsembles.jl")
-using .ClimberEnsembles
+#using .ClimberEnsembles # Needed so we can export names from sub-modules at the top-level
+#
+#export ClimberModel
+#export ClimberEnsemble
+#export ensemble_get_var!
 
-export ClimberModel
-export ClimberEnsemble
-export ensemble_get_var!
+#####
+##### Additional functions (not in sub-modules)
+#####
 
 include("Plots.jl")
 
@@ -105,10 +119,9 @@ include("Plots_ocean.jl")
 
 include("Functions.jl")
 
+export global_extrema
 export calc_bifurcation
 export load_V_ice_from_H_ice
 export dominant_period
-
-### Additional functions ###
 
 end # module

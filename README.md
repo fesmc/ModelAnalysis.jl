@@ -6,6 +6,15 @@ model (or other) data. It is purposefully broad in scope for now.
 Note that the package is under heavy development and things may change. If you will actively
 develop anything in the package, please make sure to use your own branch.
 
+## Contributing to ModelAnalysis
+
+The idea behind this package is to group together convenient functionality into one package so
+that we each can benefit from each other's innovations. Sometimes this will come in some big function 
+to make e.g. a particular kind of figure. But more often, it should come in small snippets, or building blocks,
+that are useful in different contexts. These could be a set of color palettes that are useful for plotting
+ice velocity (see `src/Plots_ice.jl:gencol_vel`), ocean bathymetry etc. 
+Or functions to add coastlines to a given Axis using the NaturalEarth dataset (see `src/Plots.jl:add_coastlines`).
+
 ## Installing / using ModelAnalysis
 
 For now, ModelAnalysis.jl should be used like any local package under development. This means
@@ -26,7 +35,12 @@ loading Revise.jl (and do so before using ModelAnalysis.jl):
     using ModelAnalysis
     ```
 
-That's it!
+That's it! Now ModelAnalysis functions are available in your script and you
+can make changes within the package locally and they will be visible in the script too.
+
+## Plotting
+
+To do
 
 ## Ensembles
 

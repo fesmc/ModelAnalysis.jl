@@ -1,8 +1,23 @@
-
-#using Statistics
-
-#export calc_bifurcation
-#export load_V_ice_from_H_ice
+"""
+Get extrema over multiple arrays
+"""
+# function global_extrema(arrays)
+#     mn, mx = extrema(collect(first(arrays)))
+#     for A in Iterators.drop(arrays, 1)
+#         a, b = extrema(collect(A))
+#         mn = min(mn, a)
+#         mx = max(mx, b)
+#     end
+#     return (mn, mx)
+# end
+# function global_extrema(arrays)
+#     return (minimum(x -> minimum(collect(x)), arrays), maximum(x -> maximum(collect(x)), arrays))
+# end
+function global_extrema(arrays)
+    a = arrays .|> collect .|> extrema
+    lim = (minimum(first, a), maximum(last, a))
+    return lim
+end
 
 function calc_bifurcation(x,y)
     # x = dT, y = V 

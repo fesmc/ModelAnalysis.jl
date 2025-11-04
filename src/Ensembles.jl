@@ -272,49 +272,59 @@ function ensemble_get_var(paths::Vector{String},filename::String,varname::String
         # Get path of file of interest for reference sim
         path_now = joinpath(paths[k],filename)
 
-        # Check if variable exists 
-        # (use NCDataset interface due to possible error with YAXArrays on _ts files)
-        ds = NCDataset(path_now)
-        if !haskey(ds, varname)
-            NetCDF.close(ds)
-            error("load_var:: Error: variable $(varname) not found in file:\n    $(path_now)")
-        end
-        NCDatasets.close(ds)
+        if isfile(path_now)
+            # Data file was found, proceed to load variable
+            
+            # Check if variable exists 
+            # (use NCDataset interface due to possible error with YAXArrays on _ts files)
+            ds = NCDataset(path_now)
+            if !haskey(ds, varname)
+                NetCDF.close(ds)
+                error("load_var:: Error: variable $(varname) not found in file:\n    $(path_now)")
+            end
+            NCDatasets.close(ds)
 
-        var_now = nothing  # Declare in outer scope
+            var_now = nothing  # Declare in outer scope
 
-        try
-            # Try to open with YAXArrays (lazy by default)
-            ds = open_dataset(path_now, driver = :netcdf)
+            try
+                # Try to open with YAXArrays (lazy by default)
+                ds = open_dataset(path_now, driver = :netcdf)
 
-            # Read a YAXArray and load it into memory
-            var_now = readcubedata(ds[varname])
+                # Read a YAXArray and load it into memory
+                var_now = readcubedata(ds[varname])
 
-        catch err
-            # Build a YAXArray manually
-            #@warn "YAXArrays failed: falling back to NCDataset" err
+            catch err
+                # Build a YAXArray manually
+                #@warn "YAXArrays failed: falling back to NCDataset" err
 
-            # Open with NCDatasets.jl
-            ds_nc = NCDataset(path_now)
+                # Open with NCDatasets.jl
+                ds_nc = NCDataset(path_now)
 
-            # Extract the variable data
-            data = ds_nc[varname][:]
-            dnames = Symbol.(NCDatasets.dimnames(ds_nc[varname]))  # Tuple of dimension names
-            axes = [ds_nc[d][:] for d in dnames]
+                # Extract the variable data
+                data = ds_nc[varname][:]
+                dnames = Symbol.(NCDatasets.dimnames(ds_nc[varname]))  # Tuple of dimension names
+                axes = [ds_nc[d][:] for d in dnames]
 
-            # Create Dim objects
-            dims = Tuple(Dim{name}(axis) for (name, axis) in zip(dnames, axes))
+                # Create Dim objects
+                dims = Tuple(Dim{name}(axis) for (name, axis) in zip(dnames, axes))
 
-            # Wrap into YAXArray
-            var_now = YAXArray(dims,data)
+                # Wrap into YAXArray
+                var_now = YAXArray(dims,data)
 
-            # Close file connection
-            NCDatasets.close(ds_nc)
-        end
+                # Close file connection
+                NCDatasets.close(ds_nc)
+            end
 
-        # Scale variable as desired 
-        var_now .= var_now .* scale
+            # Scale variable as desired 
+            var_now .= var_now .* scale
         
+        else
+            # File was not found, assume it should be stored as nothing
+
+            var_now = nothing
+
+        end
+
         # Store variable in output array
         push!(vars, var_now)
 

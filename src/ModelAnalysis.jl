@@ -103,11 +103,15 @@ export Colorbar_logdiff!
 include("Plots_ice.jl")
 
 export gencol_vel;
+export gencol_bath;
+export gencol_topo;
+export gencol_pr;
 
 export make_axis_ice2D;
 
 export preprocess_ice2D_variable;
 export heatmap_ice2D_bathymetry!
+export contour_ice2D_bath!
 export contour_ice2D_topo!
 export contour_ice2D_icemargin!
 export heatmap_ice2D!

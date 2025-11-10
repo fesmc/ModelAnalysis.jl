@@ -227,8 +227,9 @@ function ensemble_linestyling!(ens::AbstractEnsemble;cat_col=nothing,cat_style=n
         vals = unique(ens.p[!,cat_col])
     
         # Generate the colormap for these values
-        col_map = cgrad(colors,vals);
-    
+        #col_map = CairoMakie.cgrad(colors,vals);        
+        col_map = get(colorschemes[colors], range(0.0, 1.0, length=length(vals))) |> ColorScheme
+
         for (i,val) in enumerate(vals)
             kk = findall(ens.p[!,cat_col] .== val)
             ens.s.color[kk] .= col_map[i]
@@ -274,7 +275,7 @@ function ensemble_get_var(paths::Vector{String},filename::String,varname::String
 
         if isfile(path_now)
             # Data file was found, proceed to load variable
-            
+
             # Check if variable exists 
             # (use NCDataset interface due to possible error with YAXArrays on _ts files)
             ds = NCDataset(path_now)

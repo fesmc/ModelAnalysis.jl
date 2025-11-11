@@ -1,10 +1,19 @@
 # Plotting functions specific to ice sheets
 
-function make_axis_ice2D(fig_now,xlim,ylim)
-    ax = Axis(fig_now,aspect=DataAspect());
-    hidedecorations!(ax);
+function make_axis_ice2D(fig_now,xlim=nothing,ylim=nothing;title=nothing)
+    ax = Axis(fig_now,aspect=DataAspect())
+    hidedecorations!(ax)
     xlims!(ax,xlim)
     ylims!(ax,ylim)
+    # if !isnothing(xlim)
+    #     xlims!(ax,xlim)
+    # end
+    # if !isnothing(ylim)
+    #     ylims!(ax,ylim)
+    # end
+    if !isnothing(title)
+        ax.title = title
+    end
     return ax
 end
 
@@ -17,137 +26,6 @@ function make_axis_ice3D(fig_now,xlim,ylim;
     xlims!(ax,xlim)
     ylims!(ax,ylim)
     return ax
-end
-
-function gencol_vel(N::Integer;colorrange=(0.0,2000.0))
-
-    # Define color palette
-    
-    # # white => slate blue => yellow => dark red
-    # col_vel = ["white","#eff3ff","#9ecae1","#2b83ba","#abdda4","#ffffbf","#fdae61","#d7191c","#7F0000"];
-    # cs = ColorScheme(parse.(Colorant, col_vel))
-    # fscale(x) = x.^2.5;
-    # x = range(0.0, 1.0, length=N) |> fscale
-
-    # white => red => darkpurple
-    # cs = ColorSchemes.RdPu
-    # fscale(x) = x.^2.0;
-    # x = range(0.0, 1.0, length=N) |> fscale
-
-    # # white => green => darkblue
-    # cs = reverse(ColorSchemes.batlowW)
-    # fscale(x) = x.^2.0;
-    # x = range(0.0, 1.0, length=N) |> fscale
-
-    # multi-color: preferred!
-    cs = ColorSchemes.twilight
-    fscale(x) = x.^2.3;
-    x = range(0.0, 0.98, length=N) |> fscale
-    
-    cm = get(cs, x)  |> ColorSchemes.ColorScheme #|> reverse
-    cmap_colors = cgrad(cm)
-
-    # Define levels too
-    minval = max(colorrange[1],0.5) # Only allow minimum value at almost zero
-    maxval = colorrange[2]
-    cmap_levels = 10 .^ (range(log10(minval),log10(maxval),N))
-    cmap_range  = extrema(cmap_levels)
-
-    #xticks    = [0.5,1.0,2.0,5.0,10.0,20.0,50.0,100.0,200.0,500.0,1000.0,2000.0];
-    xticks    = [0.5,10.0,100.0,1000.0,2000.0];
-    #xticksstr = latexstring.(xticks);
-    xticksstr = string.(Int.(round.(xticks)));
-    xticksstr[1] = "0"
-    xticks    = log10.(xticks);
-
-    return Dict(:levels=>cmap_levels, 
-                :colors=>cmap_colors,
-                :range=>cmap_range,
-                :xticks=>xticks,
-                :xticksstr=>xticksstr)
-end
-
-function gencol_bath(N::Integer;colorrange=(-5000.0,0.0))
-
-    # Define color palette
-    cs = ColorSchemes.bone_1
-    fscale(x) = x.^1.0;
-    x = range(0.7, 0.9, length=N) |> fscale
-    
-    cm = get(cs, x)  |> ColorSchemes.ColorScheme #|> reverse
-    cmap_colors = cgrad(cm)
-    
-    # Define levels too
-    cmap_levels = range(colorrange[1],colorrange[2],N)
-    cmap_range  = extrema(cmap_levels)
-
-    xticks    = [-2000.0,-1000.0,-500.0,-200.0,-100.0,-50.0,0.0];
-    #xticksstr = latexstring.(xticks);
-    xticksstr = string.(Int.(round.(xticks)));
-
-    return Dict(:levels=>cmap_levels, 
-                :colors=>cmap_colors,
-                :range=>cmap_range,
-                :xticks=>xticks,
-                :xticksstr=>xticksstr)
-end
-
-function gencol_topo(N::Integer;colorrange=(-5000.0,5000.0))
-
-    # Define color palette
-    cs = ColorSchemes.delta # bukavu, fes, oleron, delta, diff, broc, terrain
-    fscale(x) = x.^1.0;
-    x = range(0.0, 1.0, length=N) |> fscale
-    
-    cm = get(cs, x)  |> ColorSchemes.ColorScheme #|> reverse
-    cmap_colors = cgrad(cm)
-    
-    # Define levels too
-    cmap_levels = range(colorrange[1],colorrange[2],N)
-    cmap_range  = extrema(cmap_levels)
-
-    xticks    = [-2000.0,-1000.0,-500.0,-200.0,-100.0,-50.0,0.0,50.0,100.0,200.0,500.0,1000.0,2000.0];
-    #xticksstr = latexstring.(xticks);
-    xticksstr = string.(Int.(round.(xticks)));
-
-    return Dict(:levels=>cmap_levels, 
-                :colors=>cmap_colors,
-                :range=>cmap_range,
-                :xticks=>xticks,
-                :xticksstr=>xticksstr)
-end
-
-function gencol_pr(N::Integer;colorrange=(10,1200))
-
-    # Define levels too (normal linear range)
-    #cmap_levels = range(colorrange[1],colorrange[2],N)
-    #cmap_range  = extrema(cmap_levels)
-
-    # Define levels too (log10 scaled range)
-    minval = max(colorrange[1],0.5) # Only allow minimum value at almost zero
-    maxval = colorrange[2]
-    cmap_levels = logrange(minval,maxval,N)
-    cmap_range  = extrema(cmap_levels)
-
-    xticks    = [0.5,10.0,30.0,100.0,300.0,1000.0];
-    #xticksstr = latexstring.(xticks);
-    xticksstr = string.(Int.(round.(xticks)));
-    xticksstr[1] = "0"
-    xticks    = log10.(xticks);
-
-    # Define color palette
-    #cs = reverse(ColorSchemes.davos)
-    #cs = ColorSchemes.Isfahan1
-    cs_orig = reverse(ColorSchemes.navia)
-    
-    cs = ColorScheme([cs_orig[x] for x in range(0, 0.85, length=256)])
-    cmap_colors = cgrad(cs,N,scale=x->x^0.5,categorical=true)
-
-    return Dict(:levels=>cmap_levels, 
-                :colors=>cmap_colors,
-                :range=>cmap_range,
-                :xticks=>xticks,
-                :xticksstr=>xticksstr)
 end
 
 """

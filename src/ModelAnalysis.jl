@@ -94,22 +94,32 @@ include("ClimberEnsembles.jl")
 
 include("Plots.jl")
 
-export plt_prefix;
+export plt_prefix
+export mysave
 export ne_110m_coastline
 export add_coastlines!
 export add_coastlines_0_360!
 export Colorbar_logdiff!
+export Colorbar_with_title
+export heatmapclip!
+export heatmap_temperature!
+export heatmap_precip!
+export panel_temperature!
+
+export col_bath, col_ghf, col_icevel, col_lith
+export col_precip, col_temp
+export cols
+export gencol_vel
+export gencol_bath
+export gencol_topo
+export gencol_pr
+export gencol_tas
 
 include("Plots_ice.jl")
 
-export gencol_vel;
-export gencol_bath;
-export gencol_topo;
-export gencol_pr;
-
 export make_axis_ice2D;
 
-export preprocess_ice2D_variable;
+export preprocess_ice2D_variable
 export heatmap_ice2D_bathymetry!
 export contour_ice2D_bath!
 export contour_ice2D_topo!

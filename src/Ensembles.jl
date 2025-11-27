@@ -215,12 +215,13 @@ function ensemble_save(filename::String,ens::AbstractEnsemble,name::String)
 end
 
 function ensemble_linestyling!(ens::AbstractEnsemble;cat_col=nothing,cat_style=nothing,cat_width=nothing,
-                                            colors=:tab10,linestyle=:solid,linewidth=1)
+                                            colors=:tab10,linestyle=:solid,linestyle2=(:solid,:normal),linewidth=1)
 
     # Set default style options
-    ens.s.color     = fill(colorant"Black",ens.N)
-    ens.s.linestyle = fill(linestyle,ens.N)
-    ens.s.linewidth = fill(linewidth,ens.N)
+    ens.s.color      = fill(colorant"Black",ens.N)
+    ens.s.linestyle  = fill(linestyle,ens.N)
+    ens.s.linestyle2 = fill(linestyle2,ens.N)
+    ens.s.linewidth  = fill(linewidth,ens.N)
 
     if !isnothing(cat_col)
         # Determine unique values of distinguishing variable cat_col
@@ -240,9 +241,18 @@ function ensemble_linestyling!(ens::AbstractEnsemble;cat_col=nothing,cat_style=n
     if !isnothing(cat_style) 
         # Get line styles
 
-        # TO DO
+        # These linestyles are also created in src/Plots.jl, but convenient to do so explicitly here
+        gapstyles  = [:normal, :dense, :loose, 10]
+        linestyles0 = [:dot, :dash, :dashdot, :dashdotdot]
+        linestyles2 = vec([(ls, gs) for ls in linestyles0, gs in gapstyles])
+        linestyles2 = vcat([(:solid,:normal)],linestyles2)
 
         vals = unique(ens.p[!,cat_style])
+
+        for (i,val) in enumerate(vals)
+            kk = findall(ens.p[!,cat_style] .== val)
+            ens.s.linestyle2[kk] .= Ref(linestyles2[i])
+        end
     end
     
     if !isnothing(cat_width) 

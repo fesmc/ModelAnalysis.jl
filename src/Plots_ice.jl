@@ -40,6 +40,61 @@ function preprocess_ice2D_variable(var; mask = var .> -1e8, zrange = extrema(var
     return myvar
 end 
 
+function plot_icesheet(x,y,uxy,H_ice,z_srf,z_bed; time=nothing,units="kyr",
+    xlim=extrema(x),ylim=extrema(y))
+
+    # Get specific field to plot with title
+    if !isnothing(time)
+        time_str = @sprintf("%5.1f",time)
+        time_label = string(time_str," $units")
+    end
+
+    uxy_plt   = preprocess_ice2D_variable(uxy; mask = H_ice .> 0, zrange=(0.5,10e3), scale = log10);
+    
+    # Define cmap using our predefined function for velocity colors
+    cmap_v = gencol_vel(20;colorrange=(0.0,2000.0))
+    
+    ### Define the figure
+    fig = Figure(; size = (450,500), font = "CMU Serif", fontsize= 18);
+    
+    r = 1:5
+    c = 1
+    fg = fig[1,1] = GridLayout(1,2)
+
+    ax1 = make_axis_ice2D(fg[1,1],xlim,ylim);
+    
+    cmap_t = gencol_topo(50;colorrange=[-11.2e3,12e3])
+    hm_topo = heatmap!(ax1, x, y, z_bed,colormap = cmap_t[:colors], colorrange = cmap_t[:range]);
+    ct_topo = contour_ice2D_bath!(ax1, x, y, z_bed);
+    
+    # Add shading showing velocity
+    hm1 = heatmapclip!( ax1, x, y, uxy_plt, colormap = cmap_v[:colors], colorrange = log10.(cmap_v[:range]));
+    
+    cb1 = Colorbar_with_title(fg,1,2,hm1,"m/yr",ticks = (cmap_v[:xticks], cmap_v[:xticksstr]))
+    #cb1 = Colorbar_with_title(fig,1:3,2,hm1,"m/yr",ticks = (cmap_v[:xticks], cmap_v[:xticksstr]),height=Relative(0.9))
+    #cb2 = Colorbar_with_title(fig,4:5,2,hm_topo,"m", height=Relative(0.6))
+    
+    # Add standard elevation contours on top too
+    ct_srf = contour_ice2D_topo!(ax1, x, y, z_srf);
+    ct_ice = contour_ice2D_icemargin!(ax1, x, y, H_ice);
+
+    # Add time label
+    if !isnothing(time)
+        txt1 = text!(
+            ax1, 0, 1, font = :bold,
+            align = (:left, :top), offset = (4, -2),
+            space = :relative, fontsize = 16,
+            text = time_label,
+        )
+    end
+
+    # Save figure 
+    #nt_str = @sprintf("%03i",q)
+    #fout = mysave(string("plots/"*file_prefix*"_",nt_str,".png"),fig)
+
+    return fig
+end
+
 """
 Add bathymetry shading to a predefined axis. 
 By default, greyshading used, with dark at z=colorrange[1] to white at z=colorrange[2].

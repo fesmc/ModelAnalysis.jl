@@ -95,6 +95,7 @@ include("ClimberEnsembles.jl")
 include("Plots.jl")
 
 export plt_prefix
+export linestyles
 export mysave
 export ne_110m_coastline
 export add_coastlines!
@@ -117,9 +118,9 @@ export gencol_tas
 
 include("Plots_ice.jl")
 
-export make_axis_ice2D;
-
+export make_axis_ice2D
 export preprocess_ice2D_variable
+export plot_icesheet
 export heatmap_ice2D_bathymetry!
 export contour_ice2D_bath!
 export contour_ice2D_topo!
@@ -133,6 +134,7 @@ include("Plots_ocean.jl")
 
 include("Functions.jl")
 
+export print_row
 export global_extrema
 export calc_bifurcation
 export load_V_ice_from_H_ice

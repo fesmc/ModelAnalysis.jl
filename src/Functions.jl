@@ -1,3 +1,18 @@
+
+
+### DataFrames
+
+"""
+Print a row of data transposed
+"""
+function print_row(row)
+    for (name, val) in zip(names(row), row)
+        println(rpad(name, 20), val)
+    end
+end
+
+##################
+
 """
 Get extrema over multiple arrays
 """

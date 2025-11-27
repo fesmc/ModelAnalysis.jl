@@ -4,11 +4,15 @@
 plt_prefix = "plots/"*string(Dates.today())*"_";
 
 function mysave(fout,fig;px_per_unit=2)
-    fout = string(plt_prefix*"lis-BCs-base.png")
     println("Saving ",fout)
     save(fout,fig,px_per_unit=px_per_unit)
     return fout
 end
+
+gapstyles  = [:normal, :dense, :loose, 10]
+linestyles0 = [:dot, :dash, :dashdot, :dashdotdot]
+linestyles = vec([(ls, gs) for ls in linestyles0, gs in gapstyles])
+linestyles = vcat([(:solid,:normal)],linestyles)
 
 # naturalearth("admin_0_countries", 110) # this resolves to `ne_110m_admin_0_countries.geojson`
 # https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip

@@ -184,19 +184,19 @@ function Ensemble(ens_path::Vector{String};sort_by::String="")
     return ens
 end
 
-function ensemble_set(ens::AbstractEnsemble,kk::Vector{Int})
+function ensemble_set(ens::AbstractEnsemble,idx::Vector{Int})
     # Given a vector of indices kk, return a new ensemble
     # that matches these indices (subset, reorder, etc.).
 
     # Create a copy of the original ensemble
     new = deepcopy(ens)
 
-    new.N    = length(kk)
-    new.path = ens.path[kk]
-    new.set  = ens.set[kk]
-    new.p    = ens.p[kk,:]
-    new.s    = ens.s[kk,:]
-    new.w    = ens.w[kk]
+    new.N    = length(idx)
+    new.path = ens.path[idx]
+    new.set  = ens.set[idx]
+    new.p    = ens.p[idx,:]
+    new.s    = ens.s[idx,:]
+    new.w    = ens.w[idx]
     
     N = ens.N
     
@@ -204,7 +204,7 @@ function ensemble_set(ens::AbstractEnsemble,kk::Vector{Int})
     if !isempty(ens.v)
         for (key, val) in ens.v
             length(val) == N || error("ens.v[$key] has length $(length(val)), expected $N")
-            new.v[key] = val[kk]
+            new.v[key] = val[idx]
         end
     end
 
@@ -221,29 +221,29 @@ function ensemble_set(ens::AbstractEnsemble,kk::Vector{Int})
     return new
 end
 
-function ensemble_sort!(ens::AbstractEnsemble, kk::Vector{Int})
+function ensemble_sort!(ens::AbstractEnsemble, idx::Vector{Int})
 
     N = ens.N
 
-    length(kk) == N ||
-        error("kk must have length $N for in-place sorting, got $(length(kk))")
+    length(idx) == N ||
+        error("idx must have length $N for in-place sorting, got $(length(idx))")
 
-    # Optional but strongly recommended: ensure kk is a permutation
-    isperm(kk) ||
-        error("kk must be a permutation of 1:$N for ensemble_sort!")
+    # Optional but strongly recommended: ensure idx is a permutation
+    isperm(idx) ||
+        error("idx must be a permutation of 1:$N for ensemble_sort!")
 
-    ens.path .= ens.path[kk]
-    ens.set  .= ens.set[kk]
-    ens.p    .= ens.p[kk, :]
-    ens.s    .= ens.s[kk, :]
-    ens.w    .= ens.w[kk]
+    ens.path .= ens.path[idx]
+    ens.set  .= ens.set[idx]
+    ens.p    .= ens.p[idx, :]
+    ens.s    .= ens.s[idx, :]
+    ens.w    .= ens.w[idx]
 
     # Reorder dictionary entries in v
     if !isempty(ens.v)
         for (key, val) in ens.v
             length(val) == N ||
                 error("ens.v[$key] has length $(length(val)), expected $N")
-            ens.v[key] .= val[kk]
+            ens.v[key] .= val[idx]
         end
     end
 
@@ -261,8 +261,8 @@ end
 
 function ensemble_sort!(ens::AbstractEnsemble,sort_by::AbstractString)
     hasproperty(ens.p, Symbol(sort_by)) || error("Column '$sort_by' not found in ens.p")
-    kk = sortperm(ens.p[!,sort_by])
-    ensemble_sort!(ens,kk)
+    idx = sortperm(ens.p[!,sort_by])
+    ensemble_sort!(ens,idx)
     return ens
 end
 

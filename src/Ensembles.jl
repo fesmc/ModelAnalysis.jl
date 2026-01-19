@@ -20,6 +20,7 @@ export AbstractEnsembleWeights
 export Ensemble
 export ensemble_init
 export ensemble_save
+export ensemble_set
 export ensemble_sort!
 export ensemble_linestyling!
 export ensemble_get_var!
@@ -183,23 +184,86 @@ function Ensemble(ens_path::Vector{String};sort_by::String="")
     return ens
 end
 
-function ensemble_sort!(ens::AbstractEnsemble,sort_by::String)
+function ensemble_set(ens::AbstractEnsemble,kk::Vector{Int})
+    # Given a vector of indices kk, return a new ensemble
+    # that matches these indices (subset, reorder, etc.).
 
-    kk = sortperm(ens.p[!,sort_by])
-    ens.path = ens.path[kk]
-    ens.set  = ens.set[kk]
-    ens.p    = ens.p[kk,:]
-    ens.s    = ens.s[kk,:]
-    ens.w    = ens.w[kk]
+    # Create a copy of the original ensemble
+    new = deepcopy(ens)
+
+    new.N    = length(kk)
+    new.path = ens.path[kk]
+    new.set  = ens.set[kk]
+    new.p    = ens.p[kk,:]
+    new.s    = ens.s[kk,:]
+    new.w    = ens.w[kk]
     
-    # Add sorting of each entry of Dictionaries v and vector m, entries of which should be vectors of length N
-    if length(ens.v) != 0 | length(ens.m) != 0
-        warning("""Ensemble .v or .m component is not empty, but sorting of variables is not yet implemented.
-        In this case, the newly sorted ensemble metadata will not match the order of the variable entries.
-        For now, ensemble sorting should be applied before loading any variables or members.""")
+    N = ens.N
+    
+    # Subset dictionary entries in v (if they exist)
+    if !isempty(ens.v)
+        for (key, val) in ens.v
+            length(val) == N || error("ens.v[$key] has length $(length(val)), expected $N")
+            new.v[key] = val[kk]
+        end
     end
 
-    return
+    # # Do NOT subset m; warn if non-empty
+    # if !isempty(ens.m)
+    #     @warn """
+    #     Ensemble .m is not empty.
+    #     Reordering/subsetting of .m entries is not implemented (to do!).
+    #     The .m object is left unchanged and may no longer match ensemble ordering.
+    #     """
+    #     # leave new.m exactly as in ens.m
+    # end
+
+    return new
+end
+
+function ensemble_sort!(ens::AbstractEnsemble, kk::Vector{Int})
+
+    N = ens.N
+
+    length(kk) == N ||
+        error("kk must have length $N for in-place sorting, got $(length(kk))")
+
+    # Optional but strongly recommended: ensure kk is a permutation
+    isperm(kk) ||
+        error("kk must be a permutation of 1:$N for ensemble_sort!")
+
+    ens.path .= ens.path[kk]
+    ens.set  .= ens.set[kk]
+    ens.p    .= ens.p[kk, :]
+    ens.s    .= ens.s[kk, :]
+    ens.w    .= ens.w[kk]
+
+    # Reorder dictionary entries in v
+    if !isempty(ens.v)
+        for (key, val) in ens.v
+            length(val) == N ||
+                error("ens.v[$key] has length $(length(val)), expected $N")
+            ens.v[key] .= val[kk]
+        end
+    end
+
+    # # Do NOT reorder m; warn if non-empty
+    # if !isempty(ens.m)
+    #     @warn """
+    #     Ensemble .m is not empty.
+    #     In-place reordering of .m entries is not implemented (to do!).
+    #     The .m object is left unchanged and may no longer match ensemble ordering.
+    #     """
+    # end
+
+    return ens
+end
+
+function ensemble_sort!(ens::AbstractEnsemble,sort_by::AbstractString)
+    hasproperty(ens.p, Symbol(sort_by)) || error("Column '$sort_by' not found in ens.p")
+    kk = sortperm(ens.p[!,sort_by])
+    ensemble_sort!(ens,kk)
+    return ens
 end
 
 # Save an ensemble to a file using JLD2 but give it a user-defined name for loading later

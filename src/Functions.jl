@@ -1,4 +1,53 @@
 
+function MissingToNaN(dat)
+    dat = float.(dat)
+    dat = coalesce.(dat,NaN)
+    return dat
+end
+
+"""
+Clean a variable, so that:
+- missing values are replaced with NaNs 
+- values outside of mask are set to NaN 
+- values outside of desired range are set to limits or NaN
+"""
+function clean(var; mask = nothing, zrange = nothing, scale = identity, outlier_value = NaN)
+    
+    # Copy to a new variable
+    myvar = copy(var)
+
+    # Convert all missing to NaN for consistency
+    myvar = MissingToNaN(var)
+
+    # mask:
+    if !isnothing(mask)
+        myvar[ mask .== false ] .= NaN
+    end
+
+    # zrange:
+    if isnothing(zrange)
+        zrange = extrema(var[.!isnan.(var)])
+    end
+
+    # Limit the variable range to desired range (zrange or outlier_value)
+    if isnothing(outlier_value)
+        myvar[var .< zrange[1]] .= zrange[1]
+        myvar[var .> zrange[2]] .= zrange[2]
+    else
+        if length(outlier_value)==1
+            myvar[var .< zrange[1]] .= outlier_value
+            myvar[var .> zrange[2]] .= outlier_value
+        else
+            myvar[var .< zrange[1]] .= outlier_value[1]
+            myvar[var .> zrange[2]] .= outlier_value[2]
+        end
+    end
+    
+    # Scale variable as needed:
+    myvar = scale.(myvar);
+
+    return myvar
+end 
 
 ### DataFrames
 

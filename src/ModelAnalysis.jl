@@ -73,6 +73,7 @@ export AbstractEnsembleWeights
 export Ensemble
 export ensemble_init
 export ensemble_save
+export ensemble_set
 export ensemble_sort!
 export ensemble_linestyling!
 export ensemble_get_var!
@@ -102,17 +103,20 @@ export add_coastlines!
 export add_coastlines_0_360!
 export Colorbar_logdiff!
 export Colorbar_with_title
+export heatmapclip
 export heatmapclip!
 export heatmap_temperature!
 export heatmap_precip!
 export panel_temperature!
 
-export col_bath, col_ghf, col_icevel, col_lith
+export col_bath, col_ghf, col_lith
 export col_precip, col_temp
+export col_icevel
 export cols
 export gencol_vel
 export gencol_bath
 export gencol_topo
+export gencol_log
 export gencol_pr
 export gencol_tas
 
@@ -120,6 +124,7 @@ include("Plots_ice.jl")
 
 export make_axis_ice2D
 export preprocess_ice2D_variable
+export IcePanel
 export plot_icesheet
 export heatmap_ice2D_bathymetry!
 export contour_ice2D_bath!
@@ -134,6 +139,8 @@ include("Plots_ocean.jl")
 
 include("Functions.jl")
 
+export MissingToNaN
+export clean
 export print_row
 export global_extrema
 export calc_bifurcation

@@ -1,7 +1,9 @@
 # General plotting functions
 
 # Convenient prefix(es) for plot files
-plt_prefix = "plots/"*string(Dates.today())*"_";
+function plt_prefix(;path="plots")
+    return joinpath(path,string(Dates.today())*"_")
+end
 
 function mysave(fout,fig;px_per_unit=2)
     println("Saving ",fout)
@@ -14,12 +16,55 @@ linestyles0 = [:dot, :dash, :dashdot, :dashdotdot]
 linestyles = vec([(ls, gs) for ls in linestyles0, gs in gapstyles])
 linestyles = vcat([(:solid,:normal)],linestyles)
 
+const SUP = Dict(
+    '-' => '⁻',
+    '0' => '⁰',
+    '1' => '¹',
+    '2' => '²',
+    '3' => '³',
+    '4' => '⁴',
+    '5' => '⁵',
+    '6' => '⁶',
+    '7' => '⁷',
+    '8' => '⁸',
+    '9' => '⁹'
+)
+
+to_superscript(n::Integer) = join(SUP[c] for c in string(n))
+
+trim_float(x) = replace(string(x), r"\.0$" => "")
+
+function sci_unicode(x::Real;drop_coeff_one=true,drop_exp_zero=true)
+    if x == 0
+        return "0"
+    end
+
+    exp = floor(Int, log10(abs(x)))
+    coeff = x / 10.0^exp
+    coeff = round(coeff,digits=2)
+
+    if coeff == 1 && drop_coeff_one
+        coeff_str = "10"
+    else
+        coeff_str = trim_float(coeff)*"·10"
+    end
+
+    # When exponent = 0 → simple number
+    if exp == 0 && drop_exp_zero
+        exp_str = ""
+    else
+        exp_str = to_superscript(exp)
+    end
+
+    return coeff_str*exp_str
+end
+
 # naturalearth("admin_0_countries", 110) # this resolves to `ne_110m_admin_0_countries.geojson`
 # https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip
 # ne_10m_coastline = naturalearth("ne_10m_coastline")  # this gets the 10m-scale, but explicitly
 ne_110m_coastline = naturalearth("ne_110m_coastline")  # this gets the 10m-scale, but explicitly
 
-function add_coastlines!(ax, color=:gray, linewidth=0.5)
+function add_coastlines!(ax; color=:gray, linewidth=0.5)
     # Plot the coastline
     for feature in ne_110m_coastline.features
         coords = feature.geometry.coordinates
@@ -102,7 +147,16 @@ function Colorbar_with_title(fig,r,c,hm,label;height=Relative(0.5),ticks=nothing
     return cb
 end
 
-function heatmapclip!(ax, x, y, z; colorrange=nothing, colormap=nothing, kwargs...)
+function heatmapclip(x, y, z; scale=identity, colorrange=nothing, colormap=nothing, kwargs...)
+
+    fig = Figure()
+    ax = Axis(fig[1,1])
+    hm = heatmapclip!(ax, x, y, z; scale=scale, colorrange=colorrange, colormap=colormap, kwargs...)
+
+    return fig, ax, hm
+end
+
+function heatmapclip!(ax, x, y, z; scale=identity, colorrange=nothing, colormap=nothing, tol=1e-6, kwargs...)
     
     if isnothing(colormap)
         colormap = ColorSchemes.roma
@@ -114,18 +168,23 @@ function heatmapclip!(ax, x, y, z; colorrange=nothing, colormap=nothing, kwargs.
         colorrange = (loval, hival)
     end
     
-    if loval < colorrange[1]
+    if loval < colorrange[1]-tol
         lowclip = colormap[1]
     else
         lowclip = Makie.automatic
     end
     
-    if hival > colorrange[2]
+    if hival > colorrange[2]+tol
         highclip = colormap[end]
     else
         highclip = Makie.automatic
     end
     
+    if scale != identity
+        z = scale.(z)
+        colorrange = scale.(colorrange)
+    end
+
     hm = heatmap!(ax, x, y, z; 
                   colorrange=colorrange, 
                   colormap=colormap, 
@@ -174,11 +233,22 @@ end
 ### Colorschemes for common variables
 col_ghf = ColorSchemes.tol_nightfall
 col_lith = ColorSchemes.roma #Cassatt1
-col_icevel = ColorSchemes.twilight
 col_bath = ColorSchemes.bone_1
 col_topo =  ColorSchemes.delta # bukavu, fes, oleron, delta, diff, broc, terrain
 col_precip = reverse(ColorSchemes.navia)
 col_temp = ColorSchemes.coolwarm
+
+# icevel
+col_icevel = ColorSchemes.twilight
+# begin
+#     cs = ColorSchemes.twilight
+#     fscale(x) = x.^2.3;
+#     x = range(0.0, 0.98, length=20) |> fscale
+    
+#     cm = get(cs, x)  |> ColorSchemes.ColorScheme #|> reverse
+#     col_icevel = cgrad(cm)
+# end
+
 cols = Dict(
     :roma => ColorSchemes.roma,
     :romar => reverse(ColorSchemes.roma),
@@ -193,24 +263,6 @@ cols = Dict(
 
 function gencol_vel(N::Integer;colorrange=(0.0,2000.0))
 
-    # Define color palette
-    
-    # # white => slate blue => yellow => dark red
-    # col_vel = ["white","#eff3ff","#9ecae1","#2b83ba","#abdda4","#ffffbf","#fdae61","#d7191c","#7F0000"];
-    # cs = ColorScheme(parse.(Colorant, col_vel))
-    # fscale(x) = x.^2.5;
-    # x = range(0.0, 1.0, length=N) |> fscale
-
-    # white => red => darkpurple
-    # cs = ColorSchemes.RdPu
-    # fscale(x) = x.^2.0;
-    # x = range(0.0, 1.0, length=N) |> fscale
-
-    # # white => green => darkblue
-    # cs = reverse(ColorSchemes.batlowW)
-    # fscale(x) = x.^2.0;
-    # x = range(0.0, 1.0, length=N) |> fscale
-
     # multi-color: preferred!
     cs = col_icevel
     fscale(x) = x.^2.3;
@@ -219,24 +271,28 @@ function gencol_vel(N::Integer;colorrange=(0.0,2000.0))
     cm = get(cs, x)  |> ColorSchemes.ColorScheme #|> reverse
     cmap_colors = cgrad(cm)
 
-    # Define levels too
-    minval = max(colorrange[1],0.5) # Only allow minimum value at almost zero
-    maxval = colorrange[2]
-    cmap_levels = 10 .^ (range(log10(minval),log10(maxval),N))
-    cmap_range  = extrema(cmap_levels)
-
-    #xticks    = [0.5,1.0,2.0,5.0,10.0,20.0,50.0,100.0,200.0,500.0,1000.0,2000.0];
     xticks    = [0.5,10.0,100.0,1000.0,2000.0];
-    #xticksstr = latexstring.(xticks);
     xticksstr = string.(Int.(round.(xticks)));
     xticksstr[1] = "0"
-    xticks    = log10.(xticks);
+    #xticks    = log10.(xticks);
+    ticks = (xticks,xticksstr)
 
-    return Dict(:levels=>cmap_levels, 
-                :colors=>cmap_colors,
-                :range=>cmap_range,
-                :xticks=>xticks,
-                :xticksstr=>xticksstr)
+    cmap = gencol_log(N;colors=cmap_colors,colorrange=colorrange,ticks=ticks,logmin=0.5)
+    
+    return cmap
+
+    # # Define levels too
+    # minval = max(colorrange[1],0.5) # Only allow minimum value at almost zero
+    # maxval = colorrange[2]
+    # cmap_levels = 10 .^ (range(log10(minval),log10(maxval),N))
+    # cmap_range  = extrema(cmap_levels)
+
+    # return Dict(:levels=>cmap_levels, 
+    #             :colors=>cmap_colors,
+    #             :range=>cmap_range,
+    #             :xticks=>xticks,
+    #             :xticksstr=>xticksstr,
+    #             :ticks => (xticks, xticksstr))
 end
 
 function gencol_bath(N::Integer;colorrange=(-5000.0,0.0))
@@ -261,7 +317,8 @@ function gencol_bath(N::Integer;colorrange=(-5000.0,0.0))
                 :colors=>cmap_colors,
                 :range=>cmap_range,
                 :xticks=>xticks,
-                :xticksstr=>xticksstr)
+                :xticksstr=>xticksstr,
+                :ticks => (xticks, xticksstr))
 end
 
 function gencol_topo(N::Integer;colorrange=(-5000.0,5000.0))
@@ -286,7 +343,82 @@ function gencol_topo(N::Integer;colorrange=(-5000.0,5000.0))
                 :colors=>cmap_colors,
                 :range=>cmap_range,
                 :xticks=>xticks,
-                :xticksstr=>xticksstr)
+                :xticksstr=>xticksstr,
+                :ticks => (xticks, xticksstr))
+end
+
+function logticks(minval, maxval; sub=[1,2,3,4,5,6,7,8,9], labelmajors=true, use_latex=false)
+
+    dmin = floor(Int, log10(minval))
+    dmax = ceil(Int, log10(maxval))
+
+    ticks = Float64[]
+    labels = Any[]
+
+    for k in dmin:dmax
+        decade = 10.0^k
+        # major tick
+        push!(ticks, decade)
+        if labelmajors
+            if use_latex
+                push!(labels, L"10^{%$k}")
+            else
+                push!(labels, sci_unicode(decade,drop_coeff_one=true,drop_exp_zero=false))
+            end
+        else
+            push!(labels, "")
+        end
+
+        # sub-ticks
+        for s in sub
+            t = s * decade
+            if minval <= t <= maxval
+                push!(ticks, t)
+                push!(labels, "")  # unlabeled minor tick
+            end
+        end
+    end
+
+    return log10.(ticks), labels
+end
+
+
+function gencol_log(N::Integer; colorrange = (0, 1000), colors = ColorSchemes.roma, logmin=1e-5, 
+                ticks = nothing)
+
+    # enforce nonzero min (similar to your logic)
+    maxval = colorrange[2]
+    rawmin = colorrange[1]
+    minval = rawmin <= 0 ? logmin : rawmin
+
+    # log-spaced contour levels
+    cmap_levels = logrange(minval, maxval, N)
+    cmap_range  = extrema(cmap_levels)
+
+    if isnothing(ticks)
+        (xticks, xticksstr) = logticks(minval,maxval)
+    else
+        if typeof(ticks) == typeof(ticks)==Tuple{Vector{Float64}, Vector{String}}
+            (xticks, xticksstr) = ticks
+            xticks = log10.(xticks)
+        else
+            #xticksstr = sci_unicode.(ticks)
+            xticksstr = string.(ticks)
+            xticks = log10.(ticks)
+            
+        end
+    end
+
+    cmap_colors = colors
+
+    return Dict(
+        :levels => cmap_levels,
+        :colors => cmap_colors,
+        :range  => cmap_range,
+        :xticks => xticks,
+        :xticksstr => xticksstr,
+        :ticks => (xticks, xticksstr)
+    )
 end
 
 function gencol_precip(N::Integer;colorrange=(10,1200))

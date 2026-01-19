@@ -40,6 +40,27 @@ function preprocess_ice2D_variable(var; mask = var .> -1e8, zrange = extrema(var
     return myvar
 end 
 
+function IcePanel(fig,r,c,xc,yc,var,cmap,z_srf,H_ice;xlim=nothing,ylim=nothing,title=nothing,units="",scale=identity)
+    if isnothing(xlim) 
+        xlim = extrema(xc)
+    end
+    if isnothing(ylim) 
+        ylim = extrema(yc)
+    end
+
+    ax = make_axis_ice2D(fig[r,c[1]],xlim,ylim;title=title);
+    
+    # Add shading showing variable
+    hm = heatmapclip!( ax, xc, yc, var, scale = scale, colormap = cmap[:colors], colorrange = cmap[:range]);
+    cb = Colorbar_with_title(fig,r,c[2],hm,units,ticks=cmap[:ticks])
+
+    # Add standard elevation contours on top too
+    ct_srf = contour_ice2D_topo!(ax, xc, yc, z_srf);
+    ct_ice = contour_ice2D_icemargin!(ax, xc, yc, H_ice);
+
+    return ax, hm, cb
+end
+
 function plot_icesheet(x,y,uxy,H_ice,z_srf,z_bed; time=nothing,units="kyr",
     xlim=extrema(x),ylim=extrema(y))
 

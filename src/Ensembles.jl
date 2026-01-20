@@ -1,6 +1,8 @@
 
 module Ensembles
 
+import Base: filter
+
 import DataFrames
 import CSV
 
@@ -182,6 +184,11 @@ function Ensemble(ens_path::Vector{String};sort_by::String="")
     ens = Ensemble(N,path,set,p,s,w,Dict())
 
     return ens
+end
+
+function filter(f, ens::AbstractEnsemble)
+    idx = findall(f, eachrow(ens.p))
+    return ensemble_set(ens, idx)
 end
 
 function ensemble_set(ens::AbstractEnsemble,idx::Vector{Int})

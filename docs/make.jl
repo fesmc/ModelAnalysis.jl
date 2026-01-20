@@ -7,6 +7,7 @@ makedocs(
     pages = [
         "Home" => "index.md",
     ],
+    warnonly = [:missing_docs],
 )
 
 deploydocs(

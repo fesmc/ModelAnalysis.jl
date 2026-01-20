@@ -74,7 +74,8 @@ export Ensemble
 export ensemble_init
 export ensemble_save
 export ensemble_set
-export ensemble_sort!
+export subset
+export sort!
 export ensemble_linestyling!
 export ensemble_get_var!
 export ens_stat

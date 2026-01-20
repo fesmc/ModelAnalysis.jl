@@ -1,7 +1,7 @@
 
 module Ensembles
 
-import Base: filter
+import Base: filter, sort!
 
 import DataFrames
 import CSV
@@ -22,8 +22,9 @@ export AbstractEnsembleWeights
 export Ensemble
 export ensemble_init
 export ensemble_save
-export ensemble_set
-export ensemble_sort!
+export subset
+export filter
+export sort!
 export ensemble_linestyling!
 export ensemble_get_var!
 export ens_stat
@@ -188,10 +189,10 @@ end
 
 function filter(f, ens::AbstractEnsemble)
     idx = findall(f, eachrow(ens.p))
-    return ensemble_set(ens, idx)
+    return subset(ens, idx)
 end
 
-function ensemble_set(ens::AbstractEnsemble,idx::Vector{Int})
+function subset(ens::AbstractEnsemble, idx::AbstractVector{<:Integer})
     # Given a vector of indices kk, return a new ensemble
     # that matches these indices (subset, reorder, etc.).
 
@@ -228,8 +229,9 @@ function ensemble_set(ens::AbstractEnsemble,idx::Vector{Int})
     return new
 end
 
-function ensemble_sort!(ens::AbstractEnsemble, idx::Vector{Int})
+function sort!(ens::AbstractEnsemble, perm::AbstractVector{<:Integer})
 
+    idx = perm
     N = ens.N
 
     length(idx) == N ||
@@ -266,10 +268,12 @@ function ensemble_sort!(ens::AbstractEnsemble, idx::Vector{Int})
     return ens
 end
 
-function ensemble_sort!(ens::AbstractEnsemble,sort_by::AbstractString)
-    hasproperty(ens.p, Symbol(sort_by)) || error("Column '$sort_by' not found in ens.p")
-    idx = sortperm(ens.p[!,sort_by])
-    ensemble_sort!(ens,idx)
+function sort!(ens::AbstractEnsemble, sort_by)
+    hasproperty(ens.p, sort_by) ||
+        throw(ArgumentError("Column not found in ens.p"))
+
+    idx = sortperm(ens.p[!, sort_by])
+    sort!(ens, idx)
     return ens
 end
 

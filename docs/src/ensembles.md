@@ -1,6 +1,6 @@
 # Ensemble
 
-The `Ensemble` type provides a structured container for managing ensembles of model simulations. Each ensemble may consist of input parameters, output variables, styling metadata, model objects, and optional ensemble weights.
+The `Ensemble` type provides a structured container for managing ensembles of model simulations. Each ensemble may consist of input parameters, styling metadata, ensemble variables and optional ensemble weights.
 
 ## Type Definition
 
@@ -8,13 +8,11 @@ The `Ensemble` type provides a structured container for managing ensembles of mo
 mutable struct Ensemble <: AbstractEnsemble
     N::Integer
     path::Vector{String}
-    mpath::Vector{String}
     set::Vector{Integer}
     p::DataFrames.DataFrame
     s::DataFrames.DataFrame
     w::Union{Array,AbstractEnsembleWeights}
     v::Dict{Union{String,Symbol},Any}
-    m::Vector{AbstractModel}
 end
 ```
 
@@ -31,13 +29,12 @@ ens = Ensemble()
 
 # Populate fields
 ens.N = 10
-ens.path = ["./ensemble1"]
-ens.mpath = ["./ensemble1/member1", "./ensemble1/member2", ...]
+ens.path = ["./ensemble1/member1", "./ensemble1/member2", ...]
 ens.set = fill(1, ens.N)
 ens.p = DataFrame(param1 = rand(ens.N), param2 = rand(ens.N))
 ens.s = DataFrame(color = ["red", "blue", ...])
-ens.v[:temperature] = [temp1, temp2, ...]  # YAXArrays
-ens.m = [model1, model2, ...]              # AbstractModel instances
+ens.w = fill(1, ens.N) # Vector of weights for each ensemble member
+ens.v[:temperature] = [temp1, temp2, ...]  # Vector of YAXArrays
 ```
 
 This method gives you full control and is suitable for dynamically generated ensembles.
@@ -55,13 +52,13 @@ ens = Ensemble(["path/to/ens2a", "path/to/ens2b"])
 
 #### Optional Keyword Arguments
 
-* `sort_by::String`: Sort members using a column from the parameter `DataFrame`.
+* `sort_by`: Sort members using a column from the parameter `DataFrame`.
 
 These constructors initialize the following fields:
 
-* `N`, `path`, `mpath`, `set`, `p`, `s`
+* `N`, `path`, `set`, `p`, `s`
 
-Remaining fields (`w`, `v`, `m`) can be filled in later.
+Remaining fields (`w`, `v`) can be filled in later.
 
 ---
 
@@ -84,12 +81,12 @@ ensemble_save("output_file.jld2", ens, "ens")
 ## Example Workflow
 
 ```julia
-# Load ensemble from path
+# Initialize an ensemble from path
 ens = Ensemble("runs/experiment1")
 
-# Add variables and models
-ens.v[:smb] = load_smb_outputs(ens.mpath)
-ens.m = [load_model(mpath) for mpath in ens.mpath]
+# Add variables
+ensemble_get_var!(ens,"lnd.nc","smb")
+ensemble_get_var!(ens,"atm.nc","t2m",newname="t2m_atm")
 
 # Save to file
 ensemble_save("output/ensemble_exp1.jld2", ens, "ens")
@@ -100,7 +97,6 @@ ensemble_save("output/ensemble_exp1.jld2", ens, "ens")
 ## Notes
 
 * Variables (`v`) are expected to be `YAXArray`s or collections thereof.
-* Weights (`w`) may be an array or a custom `AbstractEnsembleWeights`.
-* The type `AbstractModel` must be defined elsewhere in your codebase to suit your model structure.
+* Weights (`w`) may be a vector, array or a custom `AbstractEnsembleWeights`.
 
 ---

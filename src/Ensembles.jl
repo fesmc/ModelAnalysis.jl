@@ -43,14 +43,17 @@ mutable struct Ensemble <: AbstractEnsemble
     set::Vector{Integer}                        # which set did member come from (corresponding to ensemble base paths)
     p::DataFrames.DataFrame                     # info/parameters
     s::DataFrames.DataFrame                     # styles
-    w::Union{Array,AbstractEnsembleWeights}     # Ensemble weights
+    
+    # Convenient place to hold ensemble weights (Not initialized by constructors)
+    w::Union{Nothing,AbstractArray,AbstractEnsembleWeights}
 
-    # variables, preferrably each variable a YAXArray with one dimension N,
-    # or a vector of length N of YAXArrays
+    # Loaded variables are stored in the dictionary `v`.
+    # Preferrably each variable is an array (or YAXArray) with the last dimension N,
+    # or a vector of length N of separate arrays.
     v::Dict{Union{String,Symbol},Any}
 end
 
-function ensemble_init(ens_path::String;sort_by::String="",verbose=true)   
+function ensemble_init(ens_path::String;sort_by="",verbose=true)   
     
     # Check if ens_path exists
     if !ispath(ens_path)
@@ -103,9 +106,6 @@ function ensemble_init(ens_path::String;sort_by::String="",verbose=true)
     s.linestyle = fill(:solid,N)
     s.markersize = fill(1,N) 
 
-    # Add a weights vector too
-    w = fill(1.0,N)
-
     # Sort the ensemble by a given parameter if desired
     if sort_by != ""
         kk = sortperm(p[!,sort_by])
@@ -113,7 +113,6 @@ function ensemble_init(ens_path::String;sort_by::String="",verbose=true)
         set   = set[kk]
         p     = p[kk,:]
         s     = s[kk,:]
-        w     = w[kk]
     end
     
     if verbose
@@ -121,26 +120,25 @@ function ensemble_init(ens_path::String;sort_by::String="",verbose=true)
         println("Ensemble path: $ens_path")
     end
 
-    return N, path, set, p, s, w
+    return N, path, set, p, s
 
 end
 
-function ensemble_init(ens_path::Vector{String};sort_by::String="",verbose=true)   
+function ensemble_init(ens_path::Vector{String};sort_by="",verbose=true)   
     
     # Define the ensemble components based on first ensemble set of interest
-    _, path, set, p, s, w = ensemble_init(ens_path[1];verbose=false)
+    _, path, set, p, s = ensemble_init(ens_path[1];verbose=false)
 
     # Define info array for entire list 
     for j = 2:size(ens_path,1)
 
-        _, path1, set1, p1, s1, w1 = ensemble_init(ens_path[j];verbose=false)
+        _, path1, set1, p1, s1 = ensemble_init(ens_path[j];verbose=false)
         set .= j 
 
         append!(path,path1)
         append!(set,set1)
         p = vcat(p,p1; cols=:union)     # Handle joining DataFrames using vcat, in case columns are not the same...
         s = vcat(s,s1; cols=:union)     # Handle joining DataFrames using vcat, in case columns are not the same...
-        append!(w,w1)
     end
     
     # Update the total number of simulations and number of ensemble sets 
@@ -153,7 +151,6 @@ function ensemble_init(ens_path::Vector{String};sort_by::String="",verbose=true)
         set   = set[kk]
         p     = p[kk,:]
         s     = s[kk,:]
-        w     = w[kk]
     end
     
     if verbose
@@ -164,25 +161,28 @@ function ensemble_init(ens_path::Vector{String};sort_by::String="",verbose=true)
         end
     end
 
-    return N, path, set, p, s, w
+    return N, path, set, p, s
 end
 
-function Ensemble(ens_path::String;sort_by::String="")   
+Ensemble(N, path, set, p, s, v) =
+    Ensemble(N, path, set, p, s, nothing, v)
+
+function Ensemble(ens_path::String;sort_by="")   
     
-    N, path, set, p, s, w = ensemble_init(ens_path;sort_by=sort_by)
+    N, path, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
 
     # Store all information for output in the ensemble object
-    ens = Ensemble(N,path,set,p,s,w,Dict())
+    ens = Ensemble(N,path,set,p,s,Dict())
 
     return ens
 end
 
-function Ensemble(ens_path::Vector{String};sort_by::String="")   
+function Ensemble(ens_path::Vector{String};sort_by="")   
     
-    N, path, set, p, s, w = ensemble_init(ens_path;sort_by=sort_by)
+    N, path, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
 
     # Store all information for output in the ensemble object
-    ens = Ensemble(N,path,set,p,s,w,Dict())
+    ens = Ensemble(N,path,set,p,s,Dict())
 
     return ens
 end
@@ -204,10 +204,29 @@ function subset(ens::AbstractEnsemble, idx::AbstractVector{<:Integer})
     new.set  = ens.set[idx]
     new.p    = ens.p[idx,:]
     new.s    = ens.s[idx,:]
-    new.w    = ens.w[idx]
     
     N = ens.N
     
+    # Subset weights vector/array (if exists)
+    if !isnothing(ens.w)
+        if isa(ens.w, AbstractVector)
+            new.w = ens.w[idx]
+
+        elseif isa(ens.w, AbstractArray)
+            # Reorder based on idx in the last dimension
+            nd = ndims(ens.w)
+            inds = ntuple(d -> d == nd ? idx : Colon(), nd)
+            new.w = ens.w[inds...]
+
+        else
+            @warn """
+            Ensemble .w is not a vector or array.
+            Reordering/subsetting of .w entries for this type is not yet implemented.
+            The .w object is left unchanged and may no longer match ensemble ordering.
+            """
+        end
+    end
+
     # Subset dictionary entries in v (if they exist)
     if !isempty(ens.v)
         for (key, val) in ens.v
@@ -215,16 +234,6 @@ function subset(ens::AbstractEnsemble, idx::AbstractVector{<:Integer})
             new.v[key] = val[idx]
         end
     end
-
-    # # Do NOT subset m; warn if non-empty
-    # if !isempty(ens.m)
-    #     @warn """
-    #     Ensemble .m is not empty.
-    #     Reordering/subsetting of .m entries is not implemented (to do!).
-    #     The .m object is left unchanged and may no longer match ensemble ordering.
-    #     """
-    #     # leave new.m exactly as in ens.m
-    # end
 
     return new
 end
@@ -245,7 +254,26 @@ function sort!(ens::AbstractEnsemble, perm::AbstractVector{<:Integer})
     ens.set  .= ens.set[idx]
     ens.p    .= ens.p[idx, :]
     ens.s    .= ens.s[idx, :]
-    ens.w    .= ens.w[idx]
+    
+    # Subset weights vector/array (if exists)
+    if !isnothing(ens.w)
+        if isa(ens.w, AbstractVector)
+            new.w = ens.w[idx]
+
+        elseif isa(ens.w, AbstractArray)
+            # Reorder based on idx in the last dimension
+            nd = ndims(ens.w)
+            inds = ntuple(d -> d == nd ? idx : Colon(), nd)
+            new.w = ens.w[inds...]
+
+        else
+            @warn """
+            Ensemble .w is not a vector or array.
+            Reordering/subsetting of .w entries for this type is not yet implemented.
+            The .w object is left unchanged and may no longer match ensemble ordering.
+            """
+        end
+    end
 
     # Reorder dictionary entries in v
     if !isempty(ens.v)
@@ -255,16 +283,7 @@ function sort!(ens::AbstractEnsemble, perm::AbstractVector{<:Integer})
             ens.v[key] .= val[idx]
         end
     end
-
-    # # Do NOT reorder m; warn if non-empty
-    # if !isempty(ens.m)
-    #     @warn """
-    #     Ensemble .m is not empty.
-    #     In-place reordering of .m entries is not implemented (to do!).
-    #     The .m object is left unchanged and may no longer match ensemble ordering.
-    #     """
-    # end
-
+    
     return ens
 end
 

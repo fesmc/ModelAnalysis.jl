@@ -6,6 +6,7 @@ makedocs(
     modules = [ModelAnalysis],
     pages = [
         "Home" => "index.md",
+        "Ensembles" => "ensembles.md",
     ],
     warnonly = [:missing_docs],
 )

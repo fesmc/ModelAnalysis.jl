@@ -19,8 +19,3 @@ using ModelAnalysis
 
 TO DO
 ```
-
-## API
-
-```@autodocs
-Modules = [ModelAnalysis]

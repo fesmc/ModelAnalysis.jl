@@ -53,6 +53,16 @@ mutable struct Ensemble <: AbstractEnsemble
     v::Dict{Union{String,Symbol},Any}
 end
 
+"""
+    ensemble_init(ens_path::String;sort_by="",verbose=true)
+
+Initialize an ensemble from a directory path. Reads `info.txt` if present to build
+a DataFrame of ensemble members; otherwise assumes a single simulation. Returns
+a tuple `(N, path, set, p, s)` with the number of members, paths to each simulation,
+a placeholder integer array, the ensemble info DataFrame, and a DataFrame of
+plotting parameters. Optionally sorts the ensemble by a column in the info DataFrame
+if `sort_by` is given. Prints summary information if `verbose` is `true`.
+"""
 function ensemble_init(ens_path::String;sort_by="",verbose=true)   
     
     # Check if ens_path exists
@@ -124,6 +134,16 @@ function ensemble_init(ens_path::String;sort_by="",verbose=true)
 
 end
 
+"""
+    ensemble_init(ens_path::Vector{String};sort_by="",verbose=true)
+
+Initialize an ensemble from multiple directories. Calls the single-path `ensemble_init`
+for each entry in `ens_path` and combines the results, returning a tuple `(N, path, set, p, s)`
+    with the total number of members, paths to all simulations, a vector indicating which set
+    each member belongs to, a combined ensemble info DataFrame, and a combined plotting parameters
+    DataFrame. Optionally sorts all members by a column in the DataFrame if `sort_by` is given.
+    Prints a summary if `verbose` is `true`.
+"""
 function ensemble_init(ens_path::Vector{String};sort_by="",verbose=true)   
     
     # Define the ensemble components based on first ensemble set of interest
@@ -164,6 +184,56 @@ function ensemble_init(ens_path::Vector{String};sort_by="",verbose=true)
     return N, path, set, p, s
 end
 
+"""
+Ensemble(args...; sort_by="")
+
+Create an `Ensemble` object, which stores simulation members, paths, and associated metadata.
+
+# Construction Methods
+
+1. **From explicit components:**
+```julia
+Ensemble(N, path, set, p, s, v)
+```
+
+* `N::Int`: Number of ensemble members.
+* `path::Vector{String}`: Paths to simulations.
+* `set::Vector{Int}`: Indicates which ensemble set each member belongs to.
+* `p::DataFrame`: Ensemble info table.
+* `s::DataFrame`: Plotting parameters table.
+* `v`: Optional additional data.
+  This constructor sets internal weights to `nothing` and stores `v`.
+
+2. **From a single ensemble directory:**
+
+```julia
+Ensemble(ens_path::String; sort_by="")
+```
+
+* `ens_path`: Path to the ensemble directory or single simulation.
+* `sort_by`: Optional column name in the info table to sort the members.
+
+3. **From multiple ensemble directories:**
+
+```julia
+Ensemble(ens_path::Vector{String}; sort_by="")
+```
+
+* `ens_path`: Vector of paths to ensemble directories.
+* `sort_by`: Optional column name to sort the combined members.
+
+# Returns
+
+An `Ensemble` object containing:
+
+* `N`: Number of members.
+* `path`: Vector of paths to simulations.
+* `set`: Vector indicating the set of each member.
+* `p`: DataFrame with ensemble info.
+* `s`: DataFrame with plotting parameters.
+* `weights`: Optional weights or `nothing`.
+* `v`: Optional additional data.
+"""
 Ensemble(N, path, set, p, s, v) =
     Ensemble(N, path, set, p, s, nothing, v)
 
@@ -472,7 +542,7 @@ ensemble_members(ens::AbstractEnsemble) = ens.m
 ensemble_members(ens::Ensemble) = error("This ensemble type does not define explicit members.")
 
 """
-    collect_variable(ens::AbstractEnsemble, domain::Symbol, var::Symbol; default=missing)
+collect_variable(ens::AbstractEnsemble, domain::Symbol, var::Symbol; default=missing)
 
 Collects a specified variable `var` from the given `domain` across all model members in an ensemble `ens`.
 
@@ -490,6 +560,7 @@ Collects a specified variable `var` from the given `domain` across all model mem
 ```julia
 t2m_values = collect_variable(ensemble, :atm, :t2m)
 sst_values = collect_variable(ensemble, :ocn, :sst; default=nothing)
+```
 """
 function collect_variable(ens::AbstractEnsemble,
                           domain::Symbol, var::Symbol;

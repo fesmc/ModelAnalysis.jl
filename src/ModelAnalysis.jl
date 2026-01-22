@@ -104,6 +104,7 @@ export add_coastlines!
 export add_coastlines_0_360!
 export Colorbar_logdiff!
 export Colorbar_with_title
+export HmClip
 export heatmapclip
 export heatmapclip!
 export heatmap_temperature!

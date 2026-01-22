@@ -147,19 +147,179 @@ function Colorbar_with_title(fig,r,c,hm,label;height=Relative(0.5),ticks=nothing
     return cb
 end
 
-function heatmapclip(x, y, z; scale=identity, colorrange=nothing, colormap=nothing, kwargs...)
+@recipe(HmClip) do scene
+    Attributes(
+        tol = 1e-6,
+        colormap = ColorSchemes.roma,
+        scale = identity
+    )
+end
+
+import CairoMakie: plot!
+function plot!(p::HmClip)
+    tol = p.tol[]
+
+    # This is the *converted* z data (already sampled / expanded)
+    z = p.converted[3][]
+
+    zfinite = z[.!isnan.(z)]
+    loval, hival = extrema(zfinite)
+
+    cr = get(p, :colorrange, (loval, hival))
+
+    lowclip =
+        loval < cr[1] - tol ? p.colormap[][1] : Makie.automatic
+
+    highclip =
+        hival > cr[2] + tol ? p.colormap[][end] : Makie.automatic
+
+    p.attributes[:lowclip] = lowclip
+    p.attributes[:highclip] = highclip
+    p.attributes[:colorrange] = cr
+
+    scale = p.scale[]
+    if scale != identity
+        z = scale.(z)
+        p.attributes[:colorrange] = scale.(p.attributes[:colorrange])
+    end
+    
+    # Delegate to the real Heatmap
+    Makie.plot!(p, Heatmap)
+end
+
+# function heatmapclip(x, y, z; scale=identity, colorrange=nothing, colormap=nothing, kwargs...)
+
+#     fig = Figure()
+#     ax = Axis(fig[1,1])
+#     hm = heatmapclip!(ax, x, y, z; scale=scale, colorrange=colorrange, colormap=colormap, kwargs...)
+
+#     return fig, ax, hm
+# end
+
+# function heatmapclip!(ax, x, y, z; scale=identity, colorrange=nothing, colormap=nothing, tol=1e-6, kwargs...)
+    
+#     if isnothing(colormap)
+#         colormap = ColorSchemes.roma
+#     end
+
+#     loval, hival = minimum(z[.!isnan.(z)]), maximum(z[.!isnan.(z)])
+
+#     if isnothing(colorrange)
+#         colorrange = (loval, hival)
+#     end
+    
+#     if loval < colorrange[1]-tol
+#         lowclip = colormap[1]
+#     else
+#         lowclip = Makie.automatic
+#     end
+    
+#     if hival > colorrange[2]+tol
+#         highclip = colormap[end]
+#     else
+#         highclip = Makie.automatic
+#     end
+    
+#     if scale != identity
+#         z = scale.(z)
+#         colorrange = scale.(colorrange)
+#     end
+
+#     hm = heatmap!(ax, x, y, z; 
+#                   colorrange=colorrange, 
+#                   colormap=colormap, 
+#                   lowclip=lowclip, 
+#                   highclip=highclip,
+#                   kwargs...)
+
+#     return hm
+# end
+
+function heatmapclip(args...; scale=identity, colorrange=nothing, colormap=nothing, kwargs...)
 
     fig = Figure()
     ax = Axis(fig[1,1])
-    hm = heatmapclip!(ax, x, y, z; scale=scale, colorrange=colorrange, colormap=colormap, kwargs...)
+    hm = heatmapclip!(ax, args...; scale=scale, colorrange=colorrange, colormap=colormap, kwargs...)
 
     return fig, ax, hm
 end
 
-function heatmapclip!(ax, x, y, z; scale=identity, colorrange=nothing, colormap=nothing, tol=1e-6, kwargs...)
+"""
+    heatmapclip!(args...; scale=identity, colorrange=nothing, colormap=nothing, tol=1e-6, kwargs...)
+
+Create a heatmap with automatic clipping indicators on the colorbar.
+
+This function extends `Makie.heatmap!` by automatically setting `lowclip` and `highclip` 
+colors when data values fall outside the specified `colorrange`. Clipped values are 
+indicated by colored triangles at the ends of the colorbar using the first and last 
+colors of the colormap.
+
+# Arguments
+- `args...`: Positional arguments matching any `heatmap!` signature:
+    - `heatmapclip!(ax, z)`: Plot matrix `z` on axis `ax`
+    - `heatmapclip!(ax, x, y, z)`: Plot matrix `z` with coordinates `x`, `y` on axis `ax`
+
+# Keywords
+- `scale=identity`: Function to transform data values (e.g., `log10`, `sqrt`). Applied to 
+  both `z` and `colorrange`.
+- `colorrange=nothing`: Tuple `(low, high)` defining the color scale limits. If `nothing`, 
+  defaults to `(minimum(z), maximum(z))` (excluding NaN values).
+- `colormap=nothing`: Colormap to use. If `nothing`, defaults to `ColorSchemes.roma`.
+- `tol=1e-6`: Tolerance for determining if data extends beyond `colorrange`. Values below 
+  `colorrange[1] - tol` trigger `lowclip`; values above `colorrange[2] + tol` trigger `highclip`.
+- `kwargs...`: Additional keyword arguments passed to `heatmap!`.
+
+# Returns
+- Returns the heatmap plot object `hm`
+
+# Examples
+```julia
+using CairoMakie, ColorSchemes
+
+# Basic usage with automatic clipping
+z = randn(20, 20) # data range ±3
+fig = Figure(); ax = Axis(fig[1, 1])
+hm = heatmapclip!(ax, z, colorrange=(-1, 1))
+Colorbar(fig[1, 2],hm)
+fig
+
+# To see automatic clipping changes,
+# change colorrange:
+colorrange=(-4, 1) # no lowclip
+colorrange=(-1, 4) # no highclip
+colorrange=(-4, 4) # no lowclip or highclip
+```
+
+# Notes
+- NaN values in `z` are automatically excluded when computing data range
+- Clipping indicators only appear when data actually extends beyond `colorrange` (within `tol`)
+- The `scale` transformation is applied after clipping detection. It is applied both to `z` and `colorrange`
+"""
+function heatmapclip!(args...; scale=identity, colorrange=nothing, colormap=nothing, tol=1e-6, kwargs...)
     
+    # Get a set of colors to work with
     if isnothing(colormap)
-        colormap = ColorSchemes.roma
+        cmap = ColorSchemes.roma
+    else
+        # Handle both Symbol and ColorScheme types
+        cmap = colormap isa Symbol ? colorschemes[colormap] : colormap
+    end
+
+    # Extract the data array (z) based on the signature
+    # Possible signatures:
+    # - heatmap!(ax, z)
+    # - heatmap!(ax, x, y, z)
+    # - heatmap!(z)
+    # - heatmap!(x, y, z)
+    
+    z = if length(args) == 2 && args[1] isa Makie.AbstractAxis
+        # heatmap!(ax, z)
+        args[2]
+    elseif length(args) == 4 && args[1] isa Makie.AbstractAxis
+        # heatmap!(ax, x, y, z)
+        args[4]
+    else
+        error("Unsupported signature for heatmapclip!")
     end
 
     loval, hival = minimum(z[.!isnan.(z)]), maximum(z[.!isnan.(z)])
@@ -169,25 +329,39 @@ function heatmapclip!(ax, x, y, z; scale=identity, colorrange=nothing, colormap=
     end
     
     if loval < colorrange[1]-tol
-        lowclip = colormap[1]
+        lowclip = cmap[1]
     else
         lowclip = Makie.automatic
     end
     
     if hival > colorrange[2]+tol
-        highclip = colormap[end]
+        highclip = cmap[end]
     else
         highclip = Makie.automatic
     end
     
+    # Apply scale transformation to z and update args
     if scale != identity
-        z = scale.(z)
+        z_scaled = scale.(z)
         colorrange = scale.(colorrange)
+        
+        # Reconstruct args with scaled z
+        args = if length(args) == 2 && args[1] isa Makie.AbstractAxis
+            (args[1], z_scaled)
+        elseif length(args) == 4 && args[1] isa Makie.AbstractAxis
+            (args[1], args[2], args[3], z_scaled)
+        elseif length(args) == 1
+            (z_scaled,)
+        elseif length(args) == 3
+            (args[1], args[2], z_scaled)
+        else
+            args
+        end
     end
 
-    hm = heatmap!(ax, x, y, z; 
+    hm = heatmap!(args...; 
                   colorrange=colorrange, 
-                  colormap=colormap, 
+                  colormap=cmap, 
                   lowclip=lowclip, 
                   highclip=highclip,
                   kwargs...)

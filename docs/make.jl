@@ -7,6 +7,8 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Ensembles" => "ensembles.md",
+        "Plotting with Makie" => "plotting-with-makie.md",
+        "API" => "modelanalysis-api.md"
     ],
     warnonly = [:missing_docs],
 )

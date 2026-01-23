@@ -6,15 +6,48 @@ function MissingToNaN(dat)
 end
 
 """
-Clean a variable, so that:
-- missing values are replaced with NaNs 
-- values outside of mask are set to NaN 
-- values outside of desired range are set to limits or NaN
+    clean(var; mask=nothing, zrange=nothing, scale=identity, outlier_value=NaN)
+
+Clean and post-process an array-like variable.
+
+The function performs the following operations in order:
+
+1. Convert all `missing` values in `var` to `NaN`.
+2. Apply an optional boolean mask, setting values outside the mask to `NaN`.
+3. Enforce a value range (`zrange`), either clipping values to the range
+   or replacing out-of-range values with a specified `outlier_value`.
+4. Apply a scaling function element-wise.
+
+# Arguments
+- `var`: Array-like numeric variable to be cleaned.
+
+# Keyword Arguments
+- `mask`: Boolean array of the same shape as `var`. Entries where `mask == false`
+  are set to `NaN`. If `nothing`, no mask is applied.
+- `zrange`: Tuple `(zmin, zmax)` specifying the allowed value range.
+  If `nothing`, the range is inferred from the non-`NaN` values of `var`.
+- `scale`: Function applied element-wise to the cleaned variable
+  (default: `identity`).
+- `outlier_value`: Controls how values outside `zrange` are handled:
+    - `nothing`: values are clipped to `zrange`
+    - scalar: all out-of-range values are set to this value
+    - two-element vector or tuple: values below `zmin` are set to
+      `outlier_value[1]`, and values above `zmax` to `outlier_value[2]`
+  (default: `NaN`).
+
+# Returns
+A copy of `var` with missing values converted to `NaN`, masking and range
+handling applied, and scaled as requested.
+
+# Notes
+- The input `var` is not modified in place.
+- Range limits are computed from `var` (not the masked array) when
+  `zrange === nothing`.
 """
 function clean(var; mask = nothing, zrange = nothing, scale = identity, outlier_value = NaN)
     
     # Copy to a new variable
-    myvar = copy(var)
+    myvar = deepcopy(var)
 
     # Convert all missing to NaN for consistency
     myvar = MissingToNaN(var)
@@ -26,20 +59,20 @@ function clean(var; mask = nothing, zrange = nothing, scale = identity, outlier_
 
     # zrange:
     if isnothing(zrange)
-        zrange = extrema(var[.!isnan.(var)])
+        zrange = extrema(myvar[.!isnan.(myvar)])
     end
 
     # Limit the variable range to desired range (zrange or outlier_value)
     if isnothing(outlier_value)
-        myvar[var .< zrange[1]] .= zrange[1]
-        myvar[var .> zrange[2]] .= zrange[2]
+        myvar[myvar .< zrange[1]] .= zrange[1]
+        myvar[myvar .> zrange[2]] .= zrange[2]
     else
         if length(outlier_value)==1
-            myvar[var .< zrange[1]] .= outlier_value
-            myvar[var .> zrange[2]] .= outlier_value
+            myvar[myvar .< zrange[1]] .= outlier_value
+            myvar[myvar .> zrange[2]] .= outlier_value
         else
-            myvar[var .< zrange[1]] .= outlier_value[1]
-            myvar[var .> zrange[2]] .= outlier_value[2]
+            myvar[myvar .< zrange[1]] .= outlier_value[1]
+            myvar[myvar .> zrange[2]] .= outlier_value[2]
         end
     end
     

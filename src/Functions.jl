@@ -1,4 +1,31 @@
 
+"""
+    MissingToNaN(dat)
+
+Convert `missing` values in an array-like object to `NaN`. Most importantly,
+ensures that `missing` is removed from the eltype of the array too.
+
+The input is first converted to floating-point type element-wise, and all
+`missing` values are replaced with `NaN` using `coalesce`.
+
+# Arguments
+- `dat`: Array-like object containing numeric values and possibly `missing`.
+
+# Returns
+An array of floating-point values where all `missing` entries have been
+replaced by `NaN`.
+
+# Notes
+- All elements are converted to floating-point using `float.(dat)`.
+- This function allocates a new array and does not modify the input in place.
+- Non-numeric values will result in a conversion error.
+
+# Examples
+```julia
+dat = [1.0, missing, 3.5]
+clean = MissingToNaN(dat)
+```
+"""
 function MissingToNaN(dat)
     dat = float.(dat)
     dat = coalesce.(dat,NaN)
@@ -85,31 +112,78 @@ end
 ### DataFrames
 
 """
-Print a row of data transposed
+    print_row(row; sep = "")
+
+Pretty-print the contents of a table row as two columns aligned as `name   value` pairs.
+
+Each column name and its corresponding value are printed on a separate line,
+with the column name left-aligned to a fixed width for readability.
+
+# Arguments
+- `row`: A table row supporting `names(row)` and iteration over values
+  (e.g. a `DataFrameRow`).
+
+# Keyword Arguments
+- `sep`: Optional separator inserted between the column name and value.
+  If non-empty, it is surrounded by single spaces on both sides
+  (e.g. `sep=":"` prints `"name : value"`). Default is no separator.
+
+# Output
+Prints formatted lines to standard output; nothing is returned.
+
+# Notes
+- Column names are padded to a width of 20 characters using `rpad`.
+- The function assumes that `names(row)` and iteration over `row` are ordered
+  consistently.
+
+# Examples
+```julia
+using DataFrames
+
+df = DataFrame(a = 1, long_name = 2.5)
+print_row(df[1, :]; sep="=")
+```
 """
-function print_row(row)
+function print_row(row;sep="")
+    if sep != ""
+        sep = " "*sep*" "
+    end
     for (name, val) in zip(names(row), row)
-        println(rpad(name, 20), val)
+        println(rpad(name, 20), sep, val)
     end
 end
 
 ##################
 
 """
-Get extrema over multiple arrays
+    global_extrema(arrays)
+
+Compute the global minimum and maximum over multiple arrays.
+
+For each array in `arrays`, the local extrema are computed using `extrema`.
+The overall minimum of all minima and the overall maximum of all maxima
+are then returned.
+
+# Arguments
+- `arrays`: An iterable of array-like objects containing numeric values.
+
+# Returns
+A tuple `(min, max)` giving the global extrema across all input arrays.
+
+# Notes
+- Each element of `arrays` is first collected before calling `extrema`,
+  allowing generators and other lazy iterables to be used as input.
+- All arrays must contain at least one element and support `extrema`.
+
+# Examples
+```julia
+a = [1, 2, 3]
+b = [-5, 0, 4]
+
+lims = global_extrema((a, b))
+# returns (-5, 4)
+```
 """
-# function global_extrema(arrays)
-#     mn, mx = extrema(collect(first(arrays)))
-#     for A in Iterators.drop(arrays, 1)
-#         a, b = extrema(collect(A))
-#         mn = min(mn, a)
-#         mx = max(mx, b)
-#     end
-#     return (mn, mx)
-# end
-# function global_extrema(arrays)
-#     return (minimum(x -> minimum(collect(x)), arrays), maximum(x -> maximum(collect(x)), arrays))
-# end
 function global_extrema(arrays)
     a = arrays .|> collect .|> extrema
     lim = (minimum(first, a), maximum(last, a))

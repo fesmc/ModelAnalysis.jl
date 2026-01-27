@@ -430,86 +430,76 @@ function ensemble_linestyling!(ens::AbstractEnsemble;cat_col=nothing,cat_style=n
     return
 end
 
-function ensemble_get_var(paths::Vector{String},filename::String,varname::String;scale=1.0)::Vector{Any}
+"""
+    ensemble_get_var!(
+        ens::AbstractEnsemble,
+        filename::String,
+        varname::String;
+        subset::Union{Nothing,NamedTuple,Dict} = nothing,
+        newname = nothing,
+        scale::Real = 1.0,
+    )
 
-    # Get total number of ensemble members
-    N = size(paths,1)
+Load a variable from a file for each member of an ensemble and store it in the
+ensemble object.
 
-    println("\nLoad $varname from $filename")
-    println("  Number of members: $N")
+The variable `varname` is read from `filename` for all ensemble members listed
+in `ens.path`. The resulting data are stored in `ens.v` under the key `newname`,
+with one entry per ensemble member. If a file is missing for a given member,
+the corresponding entry is set to `nothing`.
 
-    # Make an empty array to hold the variable 
-    vars = []
+# Arguments
+- `ens::AbstractEnsemble`: Ensemble object containing the member paths.
+- `filename::String`: Name of the file to read from each ensemble member directory.
+- `varname::String`: Name of the variable to load from the file.
 
-    # Load time and variable from each simulation in ensemble 
-    for k in 1:N 
+# Keyword Arguments
+- `subset::Union{Nothing,NamedTuple,Dict} = nothing`:
+  Optional subset specification passed to the low-level loading routine
+  (e.g. for selecting indices, ranges, or dimensions).
+- `newname = nothing`:
+  Name under which the variable is stored in the ensemble. Defaults to `varname`.
+- `scale::Real = 1.0`:
+  Factor by which the loaded variable is multiplied before storage.
 
-        # Get path of file of interest for reference sim
-        path_now = joinpath(paths[k],filename)
+# Returns
+- `Nothing`: The ensemble object is modified in place.
 
-        if isfile(path_now)
-            # Data file was found, proceed to load variable
+# Examples
+```julia
+# Load surface speed for all ensemble members
+ensemble_get_var!(ens, "timesteps.nc", "speed")
 
-            # Check if variable exists 
-            # (use NCDataset interface due to possible error with YAXArrays on _ts files)
-            ds = NCDataset(path_now)
-            if !haskey(ds, varname)
-                NetCDF.close(ds)
-                error("load_var:: Error: variable $(varname) not found in file:\n    $(path_now)")
-            end
-            NCDatasets.close(ds)
+# Load and rename a variable, applying a scaling factor
+ensemble_get_var!(
+    ens,
+    "timesteps.nc",
+    "dt_now";
+    newname = "dt",
+    scale   = 86400.0,  # convert from seconds to days
+)
 
-            var_now = nothing  # Declare in outer scope
+# Load a subset of a variable
+ensemble_get_var!(
+    ens,
+    "fields.nc",
+    "temperature";
+    subset = (z = 1,),
+)
+```
 
-            try
-                # Try to open with YAXArrays (lazy by default)
-                ds = open_dataset(path_now, driver = :netcdf)
+# Notes
 
-                # Read a YAXArray and load it into memory
-                var_now = readcubedata(ds[varname])
-
-            catch err
-                # Build a YAXArray manually
-                #@warn "YAXArrays failed: falling back to NCDataset" err
-
-                # Open with NCDatasets.jl
-                ds_nc = NCDataset(path_now)
-
-                # Extract the variable data
-                data = ds_nc[varname][:]
-                dnames = Symbol.(NCDatasets.dimnames(ds_nc[varname]))  # Tuple of dimension names
-                axes = [ds_nc[d][:] for d in dnames]
-
-                # Create Dim objects
-                dims = Tuple(Dim{name}(axis) for (name, axis) in zip(dnames, axes))
-
-                # Wrap into YAXArray
-                var_now = YAXArray(dims,data)
-
-                # Close file connection
-                NCDatasets.close(ds_nc)
-            end
-
-            # Scale variable as desired 
-            var_now .= var_now .* scale
-        
-        else
-            # File was not found, assume it should be stored as nothing
-
-            var_now = nothing
-
-        end
-
-        # Store variable in output array
-        push!(vars, var_now)
-
-    end
-
-    # Return a vector of variables of length of ensemble
-    return vars
-end
-
-function ensemble_get_var!(ens::AbstractEnsemble,filename::String,varname::String;newname=nothing,scale=1.0)
+- The order of stored values follows the order of ensemble members in ens.path.
+- Missing files do not raise an error; instead, nothing is stored for that member.
+"""
+function ensemble_get_var!(ens::AbstractEnsemble,
+    filename::String,
+    varname::String;
+    subset::Union{Nothing,NamedTuple,Dict} = nothing,
+    newname=nothing,
+    scale=1.0
+)
 
     # Set how the variable will be saved
     if isnothing(newname) 
@@ -517,12 +507,130 @@ function ensemble_get_var!(ens::AbstractEnsemble,filename::String,varname::Strin
     end
 
     # Load the vector of ensemble data
-    vars = ensemble_get_var(ens.path,filename,varname;scale=scale)
+    vars = ensemble_get_var(ens.path,filename,varname;subset=subset,scale=scale)
         
     # Store in ensemble struct
     ens.v[newname] = vars
 
     return
+end
+
+function ensemble_get_var(
+    paths::Vector{String},
+    filename::String,
+    varname::String;
+    subset::Union{Nothing,NamedTuple,Dict} = nothing,
+    scale::Real = 1.0,
+)::Vector{Any}
+
+    N = length(paths)
+
+    println("\nLoad $varname from $filename")
+    println("  Number of members: $N")
+
+    vars = Vector{Any}(undef, N)
+
+    for k in 1:N
+        path_now = joinpath(paths[k], filename)
+
+        if isfile(path_now)
+            vars[k] = _load_var_single(
+                path_now,
+                varname;
+                subset = subset,
+                scale  = scale,
+            )
+        else
+            vars[k] = nothing
+        end
+    end
+
+    return vars
+end
+
+function _load_var_single(
+    path::String,
+    varname::String;
+    subset::Union{Nothing,NamedTuple,Dict},
+    scale::Real,
+)
+
+    # --- First: cheap existence check via NCDatasets ---
+    NCDataset(path) do ds
+        if !haskey(ds, varname)
+            error("ensemble_get_var: variable '$varname' not found in file:\n  $path")
+        end
+    end
+
+    # Define variable in outer scope
+    var_now = nothing
+
+    # --- Try YAXArrays (lazy, preferred) ---
+    try
+        ds = open_dataset(path, driver = :netcdf)
+        arr = ds[varname]
+
+        if subset !== nothing
+            for (d, sel) in pairs(subset)
+                arr = arr[Dim(d) => collect(sel)]
+            end
+        end
+
+        var_now = readcubedata(arr)
+
+    catch err
+        # --- Fallback: NCDatasets hyperslab ---
+        var_now = _load_var_ncdatasets(
+            path,
+            varname;
+            subset = subset,
+        )
+    end
+
+    # Make sure to convert all missing to float/NaN
+    var_now = map(x -> ismissing(x) ? NaN : float(x), var_now)
+
+    # --- Scaling (in-place, minimal allocations) ---
+    scale != 1 && (var_now .*= scale)
+
+    return var_now
+end
+
+function _load_var_ncdatasets(
+    path::String,
+    varname::String;
+    subset::Union{Nothing,NamedTuple,Dict},
+)
+
+    NCDataset(path) do ds
+        v = ds[varname]
+
+        dnames = Symbol.(NCDatasets.dimnames(v))
+
+        # Build index tuple (Colon() or subset selector)
+        inds = map(dnames) do d
+            if subset !== nothing && haskey(subset, d)
+                subset[d]
+            else
+                Colon()
+            end
+        end
+
+        # Read only the requested hyperslab
+        data = v[inds...]
+
+        # Build axes consistent with subsetting
+        axes = map(dnames, inds) do d, ind
+            ax = ds[d][:]
+            ind === Colon() ? ax : ax[ind]
+        end
+
+        dims = Tuple(
+            Dim{name}(axis) for (name, axis) in zip(dnames, axes)
+        )
+
+        return YAXArray(dims, data)
+    end
 end
 
 function ens_stat(var::Vector{Any},stat::Function)

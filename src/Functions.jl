@@ -27,8 +27,7 @@ clean = MissingToNaN(dat)
 ```
 """
 function MissingToNaN(dat)
-    dat = float.(dat)
-    dat = coalesce.(dat,NaN)
+    dat = map(x -> ismissing(x) ? NaN : float(x), dat)
     return dat
 end
 

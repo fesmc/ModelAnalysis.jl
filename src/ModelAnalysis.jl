@@ -59,39 +59,7 @@ today_prefix = string(Dates.today())*'_';
 export today_prefix;
 
 #####
-##### Include modules and export functions to use at top level
-#####
-
-# Ensembles
-include("Ensembles.jl")
-using .Ensembles    # Needed so we can export names from sub-modules at the top-level
-
-export AbstractModel
-export AbstractModelVariables
-export AbstractEnsemble
-export AbstractEnsembleWeights
-export Ensemble
-export ensemble_init
-export ensemble_save
-export ensemble_set
-export subset
-export sort!
-export ensemble_linestyling!
-export ensemble_get_var!
-export ens_stat
-export ensemble_members
-export collect_variable
-
-# ClimberEnsembles
-include("ClimberEnsembles.jl")
-#using .ClimberEnsembles # Needed so we can export names from sub-modules at the top-level
-#
-#export ClimberModel
-#export ClimberEnsemble
-#export ensemble_get_var!
-
-#####
-##### Additional functions (not in sub-modules)
+##### Functions (not in sub-modules)
 #####
 
 include("Plots.jl")
@@ -148,5 +116,37 @@ export global_extrema
 export calc_bifurcation
 export load_V_ice_from_H_ice
 export dominant_period
+
+#####
+##### Include modules and export functions to use at top level
+#####
+
+# Ensembles
+include("Ensembles.jl")
+using .Ensembles    # Needed so we can export names from sub-modules at the top-level
+
+export AbstractModel
+export AbstractModelVariables
+export AbstractEnsemble
+export AbstractEnsembleWeights
+export Ensemble
+export ensemble_init
+export ensemble_save
+export ensemble_set
+export subset
+export sort!
+export ensemble_linestyling!
+export ensemble_get_var!
+export ens_stat
+export ensemble_members
+export collect_variable
+
+# ClimberEnsembles
+include("ClimberEnsembles.jl")
+#using .ClimberEnsembles # Needed so we can export names from sub-modules at the top-level
+#
+#export ClimberModel
+#export ClimberEnsemble
+#export ensemble_get_var!
 
 end # module

@@ -33,6 +33,8 @@ import ImageFiltering
 
 # Data management packages
 import JLD2
+import DimensionalData; using DimensionalData
+import IntervalSets; using IntervalSets
 import YAXArrays; using YAXArrays
 import NCDatasets; using NCDatasets
 import NetCDF; using NetCDF
@@ -137,6 +139,8 @@ export subset
 export sort!
 export ensemble_linestyling!
 export ensemble_get_var!
+export yax_indices
+export ens_map
 export ens_stat
 export ensemble_members
 export collect_variable

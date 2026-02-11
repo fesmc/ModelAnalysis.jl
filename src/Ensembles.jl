@@ -1,6 +1,8 @@
 
 module Ensembles
 
+using DocStringExtensions
+
 import Base: filter, sort!
 
 import DataFrames

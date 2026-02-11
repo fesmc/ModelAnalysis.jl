@@ -1,4 +1,5 @@
 using Documenter
+using DocStringExtensions
 using ModelAnalysis
 
 makedocs(

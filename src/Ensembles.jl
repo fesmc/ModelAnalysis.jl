@@ -60,9 +60,9 @@ mutable struct Ensemble <: AbstractEnsemble
     v::Dict{Union{String,Symbol},Any}
 end
 
+#$(TYPEDSIGNATURES)
 """
-    $(TYPEDSIGNATURES)
-
+    ensemble_init(ens_path::String;sort_by="",verbose=true) 
 Initialize an ensemble from a directory path. Reads `info.txt` if present to build
 a DataFrame of ensemble members; otherwise assumes a single simulation. Returns
 a tuple `(N, path, set, p, s)` with the number of members, paths to each simulation,
@@ -141,8 +141,9 @@ function ensemble_init(ens_path::String;sort_by="",verbose=true)
 
 end
 
+#$(TYPEDSIGNATURES)
 """
-    $(TYPEDSIGNATURES)
+    ensemble_init(ens_path::Vector{String};sort_by="",verbose=true)
 
 Initialize an ensemble from multiple directories. Calls the single-path `ensemble_init`
 for each entry in `ens_path` and combines the results, returning a tuple `(N, path, set, p, s)`

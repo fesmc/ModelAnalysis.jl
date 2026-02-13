@@ -1,0 +1,6 @@
+[deps]
+DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
+ModelAnalysis = "46d4c6b1-fa4b-49bf-9a1f-94c6bce1a78c"
+NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"

@@ -574,7 +574,7 @@ function _load_var_single(
     var_now = nothing
 
     # Determine the indices that will be used
-    subset_inds = yax_indices(path,varname;subset...)
+    subset_inds = yax_indices(path,varname;subset)
 
     # --- Try YAXArrays ---
     try
@@ -670,7 +670,7 @@ The dataset is opened lazily; no full data loading occurs.
 """
 function yax_indices(path::AbstractString, varname::Union{Symbol,AbstractString}; subset...)
     # Open dataset lazily
-    ds = open_dataset(path)
+    ds = open_dataset(path, driver = :netcdf)
     
     # Get the variable
     var = ds[varname]

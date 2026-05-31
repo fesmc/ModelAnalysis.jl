@@ -50,7 +50,7 @@ import NaturalEarth; using NaturalEarth
 
 # Make imported libraries available when ModelAnalysis.jl is used.
 export Dates, DataFrames, PrettyTables, CSV
-export Prinf, SkipNan
+export Printf, SkipNan
 export Statistics, GLM, FFTW
 export Interpolations, DSP, ImageFiltering
 export JLD2, YAXArrays, NCDatasets, NetCDF
@@ -142,15 +142,5 @@ export ensemble_get_var!
 export yax_indices
 export ens_map
 export ens_stat
-export ensemble_members
-export collect_variable
-
-# ClimberEnsembles
-include("ClimberEnsembles.jl")
-#using .ClimberEnsembles # Needed so we can export names from sub-modules at the top-level
-#
-#export ClimberModel
-#export ClimberEnsemble
-#export ensemble_get_var!
 
 end # module

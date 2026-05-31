@@ -11,10 +11,14 @@ mutable struct Ensemble <: AbstractEnsemble
     set::Vector{Integer}
     p::DataFrames.DataFrame
     s::DataFrames.DataFrame
-    w::Union{Array,AbstractEnsembleWeights}
-    v::Dict{Union{String,Symbol},Any}
+    w::Union{Nothing,AbstractArray,AbstractEnsembleWeights}
+    v::Dict{Symbol,Dict{Symbol,Any}}
 end
 ```
+
+Loaded variables live in a nested dictionary `v`, namespaced by source file: a
+variable `t2m` loaded from `atm.nc` is stored at `ens.v[:atm][:t2m]` as a vector
+of length `N` (one entry per ensemble member).
 
 ---
 
@@ -34,7 +38,10 @@ ens.set = fill(1, ens.N)
 ens.p = DataFrame(param1 = rand(ens.N), param2 = rand(ens.N))
 ens.s = DataFrame(color = ["red", "blue", ...])
 ens.w = fill(1, ens.N) # Vector of weights for each ensemble member
-ens.v[:temperature] = [temp1, temp2, ...]  # Vector of YAXArrays
+
+# Variables go under a domain key (the source filename without extension).
+# Use :user (or any symbol you like) for variables not tied to a specific file.
+ens.v[:user] = Dict{Symbol,Any}(:temperature => [temp1, temp2, ...])
 ```
 
 This method gives you full control and is suitable for dynamically generated ensembles.
@@ -84,7 +91,7 @@ ensemble_save("output_file.jld2", ens, "ens")
 # Initialize an ensemble from path
 ens = Ensemble("runs/experiment1")
 
-# Add variables
+# Add variables (stored at ens.v[:lnd][:smb] and ens.v[:atm][:t2m_atm])
 ensemble_get_var!(ens,"lnd.nc","smb")
 ensemble_get_var!(ens,"atm.nc","t2m",newname="t2m_atm")
 
@@ -154,12 +161,12 @@ ensemble_get_var!(ens, "timesteps.nc", "speed")
 ensemble_get_var!(ens, "timesteps.nc", "dt_now")
 ```
 
-After this step:
+After this step, variables are namespaced by source file:
 
-* `ens.v[:speed]` contains the variable `speed` used in each run
-* `ens.v[:dt_now]` contains the variable `dt_now` used in each run
+* `ens.v[:timesteps][:speed]` contains the variable `speed` used in each run
+* `ens.v[:timesteps][:dt_now]` contains the variable `dt_now` used in each run
 
-The exact structure (scalars, vectors, arrays) depends on the variable stored in the NetCDF file. But each member of `ens.v` is expected to be a vector of length `ens.N`, so one entry per ensemble member.
+The exact structure of each variable (scalars, vectors, arrays) depends on what is stored in the NetCDF file. The leaf `ens.v[domain][var]` is a vector of length `ens.N`, one entry per ensemble member. Helpers like `ens_stat` and `ens_map` accept either the leaf vector directly, or `(ens, domain, var, func)` as a convenience.
 
 ---
 

@@ -35,8 +35,6 @@ export ensemble_get_var!
 export yax_indices
 export ens_map
 export ens_stat
-export ensemble_members
-export collect_variable
 
 abstract type AbstractModel end
 abstract type AbstractModelVariables end
@@ -54,10 +52,12 @@ mutable struct Ensemble <: AbstractEnsemble
     # Convenient place to hold ensemble weights (Not initialized by constructors)
     w::Union{Nothing,AbstractArray,AbstractEnsembleWeights}
 
-    # Loaded variables are stored in the dictionary `v`.
-    # Preferrably each variable is an array (or YAXArray) with the last dimension N,
-    # or a vector of length N of separate arrays.
-    v::Dict{Union{String,Symbol},Any}
+    # Loaded variables are stored in the nested dictionary `v`, namespaced by
+    # the source file (without extension). For example, loading variable `t2m`
+    # from `atm.nc` produces `ens.v[:atm][:t2m]`, a vector of length N (one
+    # entry per ensemble member). Each entry is typically a YAXArray; entries
+    # may be `nothing` for members where the source file is missing.
+    v::Dict{Symbol,Dict{Symbol,Any}}
 end
 
 #$(TYPEDSIGNATURES)
@@ -245,22 +245,33 @@ An `Ensemble` object containing:
 Ensemble(N, path, set, p, s, v) =
     Ensemble(N, path, set, p, s, nothing, v)
 
-function Ensemble(ens_path::String;sort_by="")   
-    
+# Empty constructor: lets users populate fields one by one.
+Ensemble() = Ensemble(
+    0,
+    String[],
+    Int[],
+    DataFrames.DataFrame(),
+    DataFrames.DataFrame(),
+    nothing,
+    Dict{Symbol,Dict{Symbol,Any}}(),
+)
+
+function Ensemble(ens_path::String;sort_by="")
+
     N, path, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
 
     # Store all information for output in the ensemble object
-    ens = Ensemble(N,path,set,p,s,Dict())
+    ens = Ensemble(N,path,set,p,s,Dict{Symbol,Dict{Symbol,Any}}())
 
     return ens
 end
 
-function Ensemble(ens_path::Vector{String};sort_by="")   
-    
+function Ensemble(ens_path::Vector{String};sort_by="")
+
     N, path, set, p, s = ensemble_init(ens_path;sort_by=sort_by)
 
     # Store all information for output in the ensemble object
-    ens = Ensemble(N,path,set,p,s,Dict())
+    ens = Ensemble(N,path,set,p,s,Dict{Symbol,Dict{Symbol,Any}}())
 
     return ens
 end
@@ -307,9 +318,13 @@ function subset(ens::AbstractEnsemble, idx::AbstractVector{<:Integer})
 
     # Subset dictionary entries in v (if they exist)
     if !isempty(ens.v)
-        for (key, val) in ens.v
-            length(val) == N || error("ens.v[$key] has length $(length(val)), expected $N")
-            new.v[key] = val[idx]
+        for (domain, dom_dict) in ens.v
+            new.v[domain] = Dict{Symbol,Any}()
+            for (key, val) in dom_dict
+                length(val) == N ||
+                    error("ens.v[$domain][$key] has length $(length(val)), expected $N")
+                new.v[domain][key] = val[idx]
+            end
         end
     end
 
@@ -336,13 +351,13 @@ function sort!(ens::AbstractEnsemble, perm::AbstractVector{<:Integer})
     # Subset weights vector/array (if exists)
     if !isnothing(ens.w)
         if isa(ens.w, AbstractVector)
-            new.w = ens.w[idx]
+            ens.w = ens.w[idx]
 
         elseif isa(ens.w, AbstractArray)
             # Reorder based on idx in the last dimension
             nd = ndims(ens.w)
             inds = ntuple(d -> d == nd ? idx : Colon(), nd)
-            new.w = ens.w[inds...]
+            ens.w = ens.w[inds...]
 
         else
             @warn """
@@ -355,13 +370,15 @@ function sort!(ens::AbstractEnsemble, perm::AbstractVector{<:Integer})
 
     # Reorder dictionary entries in v
     if !isempty(ens.v)
-        for (key, val) in ens.v
-            length(val) == N ||
-                error("ens.v[$key] has length $(length(val)), expected $N")
-            ens.v[key] .= val[idx]
+        for (domain, dom_dict) in ens.v
+            for (key, val) in dom_dict
+                length(val) == N ||
+                    error("ens.v[$domain][$key] has length $(length(val)), expected $N")
+                dom_dict[key] = val[idx]
+            end
         end
     end
-    
+
     return ens
 end
 
@@ -452,9 +469,10 @@ Load a variable from a file for each member of an ensemble and store it in the
 ensemble object.
 
 The variable `varname` is read from `filename` for all ensemble members listed
-in `ens.path`. The resulting data are stored in `ens.v` under the key `newname`,
-with one entry per ensemble member. If a file is missing for a given member,
-the corresponding entry is set to `nothing`.
+in `ens.path`. The resulting data are stored under `ens.v[domain][newname]`,
+where `domain` is derived from `filename` (the basename without extension), with
+one entry per ensemble member. If a file is missing for a given member, the
+corresponding entry is set to `nothing`.
 
 # Arguments
 - `ens::AbstractEnsemble`: Ensemble object containing the member paths.
@@ -475,10 +493,10 @@ the corresponding entry is set to `nothing`.
 
 # Examples
 ```julia
-# Load surface speed for all ensemble members
+# Load surface speed for all ensemble members → ens.v[:timesteps][:speed]
 ensemble_get_var!(ens, "timesteps.nc", "speed")
 
-# Load and rename a variable, applying a scaling factor
+# Load and rename a variable, applying a scaling factor → ens.v[:timesteps][:dt]
 ensemble_get_var!(
     ens,
     "timesteps.nc",
@@ -510,15 +528,22 @@ function ensemble_get_var!(ens::AbstractEnsemble,
 )
 
     # Set how the variable will be saved
-    if isnothing(newname) 
+    if isnothing(newname)
         newname = varname
     end
 
+    # Derive the domain key from the filename (basename without extension)
+    domain = Symbol(first(splitext(basename(filename))))
+    key    = Symbol(newname)
+
     # Load the vector of ensemble data
     vars = ensemble_get_var(ens.path,filename,varname;subset=subset,scale=scale)
-        
-    # Store in ensemble struct
-    ens.v[newname] = vars
+
+    # Store in ensemble struct under the derived domain
+    dom_dict = get!(ens.v, domain) do
+        Dict{Symbol,Any}()
+    end
+    dom_dict[key] = vars
 
     return
 end
@@ -573,22 +598,12 @@ function _load_var_single(
     # Define variable in outer scope
     var_now = nothing
 
-    # Determine the indices that will be used
-    subset_inds = yax_indices(path,varname;subset)
+    # Determine the indices that will be used (only when the user requested a
+    # subset; otherwise we read the full variable and skip any subset logic).
+    subset_inds = subset === nothing ? nothing : yax_indices(path,varname;subset)
 
     # --- Try YAXArrays ---
     try
-        # ds = open_dataset(path, driver = :netcdf)
-        # arr = ds[varname]
-
-        # if subset_inds !== nothing
-        #     for (d, sel) in pairs(subset_inds)
-        #         arr = arr[Dim(d) => collect(sel)]
-        #     end
-        # end
-
-        # var_now = readcubedata(arr)
-        
         ds = open_dataset(path, driver = :netcdf)
         arr = ds[varname]
 
@@ -744,9 +759,13 @@ function ens_map(dat::Vector{Any},f::Function;kwargs...)
     return new
 end
 
+# Convenience: look up the variable in the nested ens.v and apply `f` per member.
+ens_map(ens::AbstractEnsemble, domain::Symbol, var::Symbol, f::Function; kwargs...) =
+    ens_map(ens.v[domain][var], f; kwargs...)
+
 function ens_stat(var::Vector{Any},stat::Function;kwargs...)
 
-    N = length(dat)
+    N = length(var)
 
     vals = fill(NaN,N)
 
@@ -757,41 +776,8 @@ function ens_stat(var::Vector{Any},stat::Function;kwargs...)
     return vals
 end
 
-# Function to specifically return the ensemble members struct itself
-# (defined generally for the AbstractModel, but can be custom defined for specific models)
-ensemble_members(ens::AbstractEnsemble) = ens.m
-ensemble_members(ens::Ensemble) = error("This ensemble type does not define explicit members.")
-
-"""
-collect_variable(ens::AbstractEnsemble, domain::Symbol, var::Symbol; default=missing)
-
-Collects a specified variable `var` from the given `domain` across all model members in an ensemble `ens`.
-
-# Arguments
-- `ens::AbstractEnsemble`: An ensemble object containing multiple model members.
-- `domain::Symbol`: The domain key within each model run (e.g., `:atm`, `:ocn`) from which to extract the variable.
-- `var::Symbol`: The variable key to collect (e.g., `:t2m`, `:sst`).
-- `default`: Optional keyword argument specifying the value to use if the variable `var` is not present in a particular model run’s domain dictionary. Defaults to `missing`.
-
-# Returns
-- A vector where each element corresponds to the value of `var` in the specified `domain` for each model run in the ensemble.
-  If a model run does not contain the variable, the `default` value is used instead.
-
-# Example
-```julia
-t2m_values = collect_variable(ensemble, :atm, :t2m)
-sst_values = collect_variable(ensemble, :ocn, :sst; default=nothing)
-```
-"""
-function collect_variable(ens::AbstractEnsemble,
-                          domain::Symbol, var::Symbol;
-                          default = missing)
-    
-    members = ensemble_members(ens)
-    [ let dom = getfield(member, domain)
-          haskey(dom, var) ? dom[var] : default
-      end
-      for member in members ]
-end
+# Convenience: look up the variable in the nested ens.v and apply `stat` per member.
+ens_stat(ens::AbstractEnsemble, domain::Symbol, var::Symbol, stat::Function; kwargs...) =
+    ens_stat(ens.v[domain][var], stat; kwargs...)
 
 end # module

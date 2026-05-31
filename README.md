@@ -62,3 +62,8 @@ Example usage of Ensembles.jl with Yelmo model output (1D and 2D):
     # Save to output file (optionally setting a new name for the ensemble object `ens01` for when it is loaded into memory again)
     ensemble_save("ensemble01.jld2",ens,"ens01")
 ```
+
+Loaded variables are namespaced in `ens.v` by the source file (basename without
+extension), so the examples above produce e.g. `ens.v[:yelmo1D][:ts_H_ice]` and
+`ens.v[:yelmo2D][:H_ice]`. Each leaf is a length-`ens.N` vector with one entry
+per ensemble member.

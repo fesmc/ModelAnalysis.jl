@@ -7,20 +7,27 @@ using Statistics
 # ---------------------------------------------------------------------------
 # Helpers: build a tiny synthetic ensemble on disk
 # ---------------------------------------------------------------------------
-
 """
-    make_member_dir(parent, name; nt, value, with_atm=false)
+    create_subdir(parent, name)
 
-Create a single ensemble-member directory containing `timesteps.nc` with a
-`time` dimension of length `nt` and a `speed(time)` variable filled with
-`value`. Optionally also writes `atm.nc` with a `t2m(time)` variable.
+Create a subdirectory `name` inside parent directory `parent` to be used as single ensemble-member directory.
 """
-function make_member_dir(parent::String, name::String;
-                         nt::Int, value::Float64, with_atm::Bool=false)
+function create_subdir(parent::String, name::String)
     dir = joinpath(parent, name)
     mkpath(dir)
+    return dir
+end
 
-    NCDataset(joinpath(dir, "timesteps.nc"), "c") do ds
+
+"""
+    fill_member_dir(path_member_dir; nt, value, with_atm=false)
+
+Fill a single ensemble-member directory with files: `timesteps.nc` with a
+`time` dimension of length `nt` and a `speed(time)` variable filled with
+`value`. Optionally also write `atm.nc` with a `t2m(time)` variable.
+"""
+function fill_member_dir(path_member_dir::String; nt::Int, value::Float64, with_atm::Bool=false)
+    NCDataset(joinpath(path_member_dir, "timesteps.nc"), "c") do ds
         defDim(ds, "time", nt)
         t = defVar(ds, "time", Float64, ("time",))
         t[:] = collect(1.0:nt)
@@ -29,7 +36,7 @@ function make_member_dir(parent::String, name::String;
     end
 
     if with_atm
-        NCDataset(joinpath(dir, "atm.nc"), "c") do ds
+        NCDataset(joinpath(path_member_dir, "atm.nc"), "c") do ds
             defDim(ds, "time", nt)
             t = defVar(ds, "time", Float64, ("time",))
             t[:] = collect(1.0:nt)
@@ -38,8 +45,9 @@ function make_member_dir(parent::String, name::String;
         end
     end
 
-    return dir
+    return nothing
 end
+
 
 """
     make_ensemble_dir(parent; rows)
@@ -48,10 +56,9 @@ Create an ensemble directory under `parent` with `info.txt` describing the
 members in `rows` (a vector of NamedTuples with at least `rundir` and `dx`
 fields) and one subdirectory per member.
 """
-function make_ensemble_dir(parent::String;
-                           rows::Vector{<:NamedTuple})
-    root = joinpath(parent, "ens")
-    mkpath(root)
+function make_ensemble_dir(parent::String; rows::Vector{<:NamedTuple})
+    
+    root = create_subdir(parent, "ens")
 
     # info.txt: space-separated header, then rows
     open(joinpath(root, "info.txt"), "w") do io
@@ -63,11 +70,13 @@ function make_ensemble_dir(parent::String;
         end
     end
 
+    n_sim = length(rows)
     for r in rows
         nt = hasproperty(r, :nt) ? r.nt : 4
         with_atm = hasproperty(r, :with_atm) ? r.with_atm : false
-        make_member_dir(root, string(r.rundir);
-                        nt=nt, value=Float64(r.value), with_atm=with_atm)
+        # for single simulations, data is written in top-level directory
+        dir = n_sim > 1 ? create_subdir(root, string(r.rundir)) : root
+        fill_member_dir(dir; nt=nt, value=Float64(r.value), with_atm=with_atm)
     end
 
     return root
@@ -202,6 +211,20 @@ end
             @test haskey(ens.v, :timesteps)
             @test haskey(ens.v, :atm)
             @test all(ens.v[:atm][:t2m][1] .== 10.0)
+        end        
+    end
+
+    @testset "Load single simulation" begin
+        mktempdir() do tmp
+            rows = [
+                (rundir = "m1", dx = 16, value = 1.0, with_atm = true)
+            ]
+            root = make_ensemble_dir(tmp; rows = rows)
+            ens = Ensemble(root)
+            @test ens.N == 1
+            
+            ensemble_get_var!(ens, "atm.nc", "t2m")
+            @test !isnothing(ens.v[:atm][:t2m][1])
         end
     end
 end

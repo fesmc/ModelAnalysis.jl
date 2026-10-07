@@ -103,7 +103,9 @@ function ensemble_init(ens_path::String;sort_by="",verbose=true)
     path = fill("",N)
     
     # Populate the array
-    if found_info
+    # for single simulations info.txt may be available, while the data of the single simulation
+    # is directly stored in `ens_path`, not in a subdirectory of it. 
+    if found_info && N > 1 
         # Ensemble, populate the run path by combing path with rundir
         for i in 1:N
             path[i] = joinpath(ens_path,string(p[i,"rundir"]))

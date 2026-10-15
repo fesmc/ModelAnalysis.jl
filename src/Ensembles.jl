@@ -589,85 +589,37 @@ function _load_var_single(
     subset::Union{Nothing,NamedTuple,Dict},
     scale::Real,
 )
+    # Define variable in outer scope
+    var_yax = nothing
 
-    # --- First: cheap existence check via NCDatasets ---
     NCDataset(path) do ds
         if !haskey(ds, varname)
             error("ensemble_get_var: variable '$varname' not found in file:\n  $path")
         end
-    end
 
-    # Define variable in outer scope
-    var_now = nothing
-
-    # Determine the indices that will be used (only when the user requested a
-    # subset; otherwise we read the full variable and skip any subset logic).
-    subset_inds = subset === nothing ? nothing : yax_indices(path,varname;subset)
-
-    # --- Try YAXArrays ---
-    try
-        ds = open_dataset(path, driver = :netcdf)
-        arr = ds[varname]
-
-        if subset_inds !== nothing
-            arr = arr[Dim.(keys(subset_inds)) .=> values(subset_inds)...]
+        v = ds[varname]
+        dnames = Symbol.(NCDatasets.dimnames(v))
+        coords = [ds[String(d)][:] for d in dnames]
+        
+        # Build index tuple (Colon() or subset selector)
+        inds = map(dnames, coords) do d, c
+            subset !== nothing && haskey(subset, d) ?
+            _resolve_selector(DimensionalData.format(Dim{d}(c), eachindex(c)), subset[d]) : Colon()    
         end
+        # Read only the requested hyperslab
+        data = v[inds...]
+        # make sure to convert all missing to float/NaN
+        T = float(nonmissingtype(eltype(data))) # X instead of Union{Missing, X}
+        var_now = map(x -> ismissing(x) ? T(NaN) : T(x), data) # everything must have same type
 
-        var_now = readcubedata(arr)
-
-    catch err
-        # --- Fallback: NCDatasets hyperslab ---
-        var_now = _load_var_ncdatasets(
-            path,
-            varname;
-            subset = subset_inds,
-        )
+        # --- Scaling (in-place, minimal allocations) ---
+        scale != 1 && (var_now .*= scale)
+        
+        # Build axes consistent with subsetting
+        dims = Tuple(Dim{name}(coord[ind]) for (name, coord, ind) in zip(dnames, coords, inds))
+        var_yax = YAXArray(dims, var_now)
     end
-
-    # Make sure to convert all missing to float/NaN
-    var_now = map(x -> ismissing(x) ? NaN : float(x), var_now)
-
-    # --- Scaling (in-place, minimal allocations) ---
-    scale != 1 && (var_now .*= scale)
-
-    return var_now
-end
-
-function _load_var_ncdatasets(
-    path::String,
-    varname::String;
-    subset::Union{Nothing,NamedTuple,Dict},
-)
-
-    ds = NCDataset(path)
-
-    v = ds[varname]
-
-    dnames = Symbol.(NCDatasets.dimnames(v))
-
-    # Build index tuple (Colon() or subset selector)
-    inds = map(dnames) do d
-        if subset !== nothing && haskey(subset, d)
-            subset[d]
-        else
-            Colon()
-        end
-    end
-
-    # Read only the requested hyperslab
-    data = v[inds...]
-
-    # Build axes consistent with subsetting
-    axes = map(dnames, inds) do d, ind
-        ax = ds[d][:]
-        ind === Colon() ? ax : ax[ind]
-    end
-
-    dims = Tuple(
-        Dim{name}(axis) for (name, axis) in zip(dnames, axes)
-    )
-
-    return YAXArray(dims, data)
+    return var_yax
 end
 
 using YAXArrays
@@ -676,16 +628,16 @@ using DimensionalData.Dimensions
 using DimensionalData.LookupArrays
 
 """
-    yax_indices(path, varname; subset...)
+    yax_indices(path, varname; subset)
 
 Return integer indices for each dimension of `varname` corresponding
-to YAXArrays-style keyword subsetting (e.g. `lat=50..90`, `time=At(1)`).
+to YAXArrays-style keyword subsetting (e.g. subset = (lat=50..90, time=At(1)).
 
 If no subset is provided, full indices for all dimensions are returned.
 
 The dataset is opened lazily; no full data loading occurs.
 """
-function yax_indices(path::AbstractString, varname::Union{Symbol,AbstractString}; subset...)
+function yax_indices(path::AbstractString, varname::Union{Symbol,AbstractString}; subset::Union{NamedTuple, Dict, Nothing} = nothing)
     # Open dataset lazily
     ds = open_dataset(path, driver = :netcdf)
     
@@ -696,7 +648,7 @@ function yax_indices(path::AbstractString, varname::Union{Symbol,AbstractString}
     dims_list = dims(var)
     
     # If no subset provided, return full indices for all dimensions
-    if isempty(subset)
+    if isnothing(subset)
         return Dict(DimensionalData.name(d) => 1:size(var, i) for (i, d) in enumerate(dims_list))
     end
     
@@ -731,12 +683,14 @@ function _resolve_selector(dim::Dimension, selector)
     if selector isa Colon
         # Return all indices
         return 1:length(lookup)
-    elseif selector isa Integer || selector isa AbstractRange || selector isa AbstractVector
+    elseif selector isa Integer
+        # otherwise this length-1 dimension will be dropped when selector is applied
+        return selector:selector
+    elseif selector isa AbstractRange || selector isa AbstractVector
         # Assume indices have been provided
         return selector
     else
         # Use DimensionalData's selectindices to figure it out
-        
         idx = DimensionalData.selectindices(lookup, selector)
         
         # Validate that we got meaningful indices
@@ -744,7 +698,10 @@ function _resolve_selector(dim::Dimension, selector)
             error("Selector $selector is out of bounds for dimension $(DimensionalData.name(dim)) with range $(extrema(lookup))")
         end
         
-        return idx
+        # handle DimensionalData selectors like At or Near that select a single value,
+        # s.t. length-1 dimension would be dropped when selector is applied
+        return isa(idx, Integer) ? (idx:idx) : idx
+
     end
 end
 

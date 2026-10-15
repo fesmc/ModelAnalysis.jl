@@ -211,7 +211,7 @@ end
             @test haskey(ens.v, :timesteps)
             @test haskey(ens.v, :atm)
             @test all(ens.v[:atm][:t2m][1] .== 10.0)
-        end        
+        end
     end
 
     @testset "Load single simulation" begin
@@ -225,6 +225,19 @@ end
             
             ensemble_get_var!(ens, "atm.nc", "t2m")
             @test !isnothing(ens.v[:atm][:t2m][1])
+        end
+    end
+
+    @testset "yax_indices with subset" begin
+        mktempdir() do tmp
+            rows = [
+                (rundir = "m1", dx = 16, value = 1.0, nt = 5, with_atm = true)
+            ]
+            root = make_ensemble_dir(tmp; rows = rows)
+            ds_full = yax_indices(joinpath(root, "atm.nc"), "t2m")
+            ds_range = yax_indices(joinpath(root, "atm.nc"), "t2m"; subset = (time = 1:2,))
+            @test length(ds_full[:time]) == 5
+            @test length(ds_range[:time]) == 2
         end
     end
 end

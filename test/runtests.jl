@@ -1,5 +1,6 @@
 using Test
 using ModelAnalysis
+using ModelAnalysis.CairoMakie
 using NCDatasets
 using DataFrames
 using Statistics
@@ -78,6 +79,38 @@ end
 # ---------------------------------------------------------------------------
 
 @testset "ModelAnalysis" begin
+
+    @testset "icesheet_stats" begin
+        H  = zeros(4, 4); H[2:3, 2:3] .= 1000.0          # 4 cells of 1 km ice
+        zb = fill(100.0, 4, 4); zb[2, 2] = -910.0         # one marine cell
+        s  = icesheet_stats(H, 1e6)
+        @test s.H_max == 1000.0
+        @test s.V_ice == 4 * 1000.0 * 1e6
+        @test s.V_sle ≈ 4e9 * 0.91 / 3.618e14
+        # Above flotation: the marine cell has 910*1028/910 = 1028 m > 1000 m -> 0
+        s2 = icesheet_stats(H, fill(1e6, 4, 4); z_bed = zb)
+        @test s2.V_sle ≈ 3e9 * 0.91 / 3.618e14
+        @test icesheet_stats(H, 1e6; mask = falses(4, 4)).V_ice == 0.0
+    end
+
+    @testset "icesheet_panel!" begin
+        x = collect(0.0:16.0:800.0); y = collect(0.0:16.0:960.0)
+        r = [hypot(xi - 400, yi - 480) for xi in x, yi in y]
+        H = max.(3000.0 .* (1 .- (r ./ 350) .^ 2), 0.0)
+        zb = 200.0 .- r
+        u = 1e-3 .* r .^ 2
+        fig = Figure(); ax = Axis(fig[1, 1])
+        p = icesheet_panel!(ax, x, y, u, zb .+ H, H; z_bed = zb, ref = H .> 500)
+        icesheet_colorbar(fig[1, 2], p.hm)
+        @test p.stats.H_max ≈ maximum(H)
+        @test p.stats.V_sle > 0
+        @test with_theme(theme_ice()) do
+            fig2 = Figure(); ax2 = Axis(fig2[1, 1])
+            icesheet_panel!(ax2, x, y, u, zb .+ H, H)
+            true
+        end
+    end
+
 
     @testset "Ensemble() empty constructor" begin
         ens = Ensemble()

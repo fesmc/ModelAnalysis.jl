@@ -88,3 +88,35 @@ begin
 end
 
 ```
+
+## Ice-sheet maps
+
+`icesheet_panel!` draws the standard ice-sheet map into an existing axis:
+surface velocity (log scale, `gencol_vel`) as shading, surface elevation
+contours (every 500 m, thick every 1000 m), the ice margin, land and
+bathymetry from `z_bed`, optionally a reference extent (dashed), and a label
+with the maximum ice thickness and the ice volume in m SLE
+(`icesheet_stats`, ice above flotation). Use `theme_ice()` for the house style.
+
+```julia
+using ModelAnalysis, NCDatasets
+
+ds = NCDataset("yelmo.nc")
+x, y = ds["xc"][:], ds["yc"][:]
+k = length(ds["time"])
+get(v) = ds[v][:, :, k]
+
+with_theme(theme_ice()) do
+    fig = Figure(size = (450, 500))
+    ax = Axis(fig[1, 1], aspect = DataAspect()); hidedecorations!(ax); hidespines!(ax)
+    p = icesheet_panel!(ax, x, y, get("uxy_s"), get("z_srf"), get("H_ice");
+                        z_bed = get("z_bed"), z_sl = get("z_sl"),
+                        area = ds["area"][:, :] .* 1e6)   # true cell area [m^2]
+    icesheet_colorbar(fig[1, 2], p.hm)
+    fig
+end
+```
+
+On a projected grid pass the true cell `area` (Yelmo writes it in km^2):
+the default, the map area dx^2, overestimates the volume away from the
+true-scale latitude (about 8% at 60°N for a stereographic grid true at 70°N).

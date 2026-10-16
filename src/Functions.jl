@@ -238,3 +238,38 @@ function dominant_period(t, x)
 
     return 1 / freqs[dominant_idx]    # Return dominant period
 end
+"""
+    icesheet_stats(H_ice, area; z_bed=nothing, z_sl=0.0, mask=nothing, Hmin=1.0,
+                   rho_ice=910.0, rho_sw=1028.0, rho_w=1000.0, A_ocean=3.618e14)
+
+Maximum ice thickness `H_max` [m], ice volume `V_ice` [m^3] and sea-level
+equivalent `V_sle` [m] of the ice (H_ice > Hmin) within `mask`. `area` [m^2] is
+the cell area: a field (true area, e.g. Yelmo's `area` on a projected grid) or a
+scalar dx^2 (map area, too large away from the true-scale latitude of the
+projection). With `z_bed`, `V_sle` counts only the ice above flotation
+(as Yelmo's regional V_sle); without it, all ice. Densities as
+yelmo_phys_const.nml; `A_ocean` [m^2] is the present-day ocean area.
+"""
+function icesheet_stats(H_ice, area; z_bed = nothing, z_sl = 0.0, mask = nothing, Hmin = 1.0,
+                        rho_ice = 910.0, rho_sw = 1028.0, rho_w = 1000.0, A_ocean = 3.618e14)
+
+    H = Float64.(coalesce.(H_ice, 0.0))
+    m = H .> Hmin
+    if !isnothing(mask)
+        m = m .& mask
+    end
+
+    H_af = if isnothing(z_bed)
+        H
+    else
+        depth = max.(z_sl .- Float64.(coalesce.(z_bed, 0.0)), 0.0)
+        max.(H .- depth .* (rho_sw / rho_ice), 0.0)
+    end
+
+    H_max = any(m) ? maximum(H[m]) : 0.0
+    a     = area isa Number ? fill(Float64(area), size(H)) : Float64.(coalesce.(area, 0.0))
+    V_ice = sum(H[m] .* a[m])
+    V_sle = sum(H_af[m] .* a[m]) * (rho_ice / rho_w) / A_ocean
+
+    return (H_max = H_max, V_ice = V_ice, V_sle = V_sle)
+end

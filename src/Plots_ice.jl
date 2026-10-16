@@ -83,12 +83,12 @@ end
 """
     theme_ice(; fontsize=14)
 
-House style for ice-sheet figures: Computer Modern fonts (as LaTeX, bundled with
-Makie), plain axes, no grid. Use with `with_theme(theme_ice()) do ... end` or
-`set_theme!(theme_ice())`.
+House style for ice-sheet figures: Makie's default font, plain axes, no grid.
+Sub- and superscripts in labels as Unicode characters (Hₘₐₓ, km²). Use with
+`with_theme(theme_ice()) do ... end` or `set_theme!(theme_ice())`.
 """
 function theme_ice(; fontsize=14)
-    th = Theme(
+    return Theme(
         fontsize = fontsize,
         Axis = (titlesize = fontsize, titlefont = :regular,
                 xgridvisible = false, ygridvisible = false,
@@ -96,7 +96,6 @@ function theme_ice(; fontsize=14)
         Colorbar = (ticklabelsize = fontsize - 2, labelsize = fontsize),
         Legend = (framevisible = false, labelsize = fontsize - 2),
     )
-    return merge(th, theme_latexfonts())
 end
 
 # Background colors of ice-sheet maps
@@ -167,8 +166,7 @@ function icesheet_panel!(ax, x, y, uxy_s, z_srf, H_ice;
         text!(ax, x0, y0, space = :relative, align = stats_align,
               offset = (x0 == 0 ? 4 : -4, y0 == 0 ? 4 : -4),
               fontsize = 0.85 * Makie.theme(:fontsize)[],
-              text = rich("H", subscript("max"), @sprintf(" = %.1f km\nV = %.1f m SLE",
-                                                          s.H_max / 1e3, s.V_sle)))
+              text = @sprintf("Hₘₐₓ = %.1f km\nV = %.1f m SLE", s.H_max / 1e3, s.V_sle))
     end
 
     return (hm = hm, cmap = cmap, stats = s)

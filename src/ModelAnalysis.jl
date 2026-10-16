@@ -104,6 +104,10 @@ export contour_ice2D_topo!
 export contour_ice2D_icemargin!
 export heatmap_ice2D!
 export heatmap_ice2D_logdiff!
+export theme_ice
+export col_land, col_ocean
+export icesheet_panel!
+export icesheet_colorbar
 
 include("Plots_ocean.jl")
 
@@ -117,6 +121,7 @@ export print_row
 export global_extrema
 export calc_bifurcation
 export load_V_ice_from_H_ice
+export icesheet_stats
 export dominant_period
 
 #####

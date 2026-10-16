@@ -64,56 +64,122 @@ end
 function plot_icesheet(x,y,uxy,H_ice,z_srf,z_bed; time=nothing,units="kyr",
     xlim=extrema(x),ylim=extrema(y))
 
-    # Get specific field to plot with title
-    if !isnothing(time)
-        time_str = @sprintf("%5.1f",time)
-        time_label = string(time_str," $units")
+    fig = with_theme(theme_ice()) do
+        fig = Figure(; size = (450,500))
+        ax  = make_axis_ice2D(fig[1,1],xlim,ylim)
+        p   = icesheet_panel!(ax, x, y, uxy, z_srf, H_ice; z_bed=z_bed)
+        icesheet_colorbar(fig[1,2], p.hm)
+
+        if !isnothing(time)
+            text!(ax, 0, 1, font = :bold, align = (:left, :top), offset = (4, -2),
+                  space = :relative, text = @sprintf("%5.1f %s", time, units))
+        end
+        fig
     end
-
-    uxy_plt   = preprocess_ice2D_variable(uxy; mask = H_ice .> 0, zrange=(0.5,10e3), scale = log10);
-    
-    # Define cmap using our predefined function for velocity colors
-    cmap_v = gencol_vel(20;colorrange=(0.0,2000.0))
-    
-    ### Define the figure
-    fig = Figure(; size = (450,500), font = "CMU Serif", fontsize= 18);
-    
-    r = 1:5
-    c = 1
-    fg = fig[1,1] = GridLayout(1,2)
-
-    ax1 = make_axis_ice2D(fg[1,1],xlim,ylim);
-    
-    cmap_t = gencol_topo(50;colorrange=[-11.2e3,12e3])
-    hm_topo = heatmap!(ax1, x, y, z_bed,colormap = cmap_t[:colors], colorrange = cmap_t[:range]);
-    ct_topo = contour_ice2D_bath!(ax1, x, y, z_bed);
-    
-    # Add shading showing velocity
-    hm1 = heatmapclip!( ax1, x, y, uxy_plt, colormap = cmap_v[:colors], colorrange = log10.(cmap_v[:range]));
-    
-    cb1 = Colorbar_with_title(fg,1,2,hm1,"m/yr",ticks = (cmap_v[:xticks], cmap_v[:xticksstr]))
-    #cb1 = Colorbar_with_title(fig,1:3,2,hm1,"m/yr",ticks = (cmap_v[:xticks], cmap_v[:xticksstr]),height=Relative(0.9))
-    #cb2 = Colorbar_with_title(fig,4:5,2,hm_topo,"m", height=Relative(0.6))
-    
-    # Add standard elevation contours on top too
-    ct_srf = contour_ice2D_topo!(ax1, x, y, z_srf);
-    ct_ice = contour_ice2D_icemargin!(ax1, x, y, H_ice);
-
-    # Add time label
-    if !isnothing(time)
-        txt1 = text!(
-            ax1, 0, 1, font = :bold,
-            align = (:left, :top), offset = (4, -2),
-            space = :relative, fontsize = 16,
-            text = time_label,
-        )
-    end
-
-    # Save figure 
-    #nt_str = @sprintf("%03i",q)
-    #fout = mysave(string("plots/"*file_prefix*"_",nt_str,".png"),fig)
 
     return fig
+end
+
+"""
+    theme_ice(; fontsize=14)
+
+House style for ice-sheet figures: Makie's default font, plain axes, no grid.
+Sub- and superscripts in labels as Unicode characters (Hₘₐₓ, km²). Use with
+`with_theme(theme_ice()) do ... end` or `set_theme!(theme_ice())`.
+"""
+function theme_ice(; fontsize=14)
+    return Theme(
+        fontsize = fontsize,
+        Axis = (titlesize = fontsize, titlefont = :regular,
+                xgridvisible = false, ygridvisible = false,
+                topspinevisible = false, rightspinevisible = false),
+        Colorbar = (ticklabelsize = fontsize - 2, labelsize = fontsize),
+        Legend = (framevisible = false, labelsize = fontsize - 2),
+    )
+end
+
+# Background colors of ice-sheet maps
+col_land  = :gray88
+col_ocean = :white
+
+"""
+    icesheet_panel!(ax, x, y, uxy_s, z_srf, H_ice; kwargs...)
+
+Draw an ice-sheet map into the axis `ax`: land (z_bed >= z_sl) in gray with
+bathymetry contours, the surface velocity (log scale, ice only) as shading,
+the surface elevation as contours (every 500 m, thick every 1000 m), the ice
+margin, optionally a reference extent, and a label with the maximum ice
+thickness and the ice volume (`icesheet_stats`). `x`, `y` in km.
+
+# Keywords
+- `z_bed=nothing`: bed elevation [m]; without it no background is drawn and
+  the volume counts all ice (not only above flotation).
+- `z_sl=0.0`: sea level [m] (scalar or field).
+- `ref=nothing`: reference ice mask (e.g. an observed or initial extent),
+  drawn as a dashed contour in `ref_color`.
+- `Hmin=1.0`: [m] ice thickness defining the ice cover.
+- `cmap=gencol_vel(20)`: velocity colormap (see `gencol_vel`).
+- `stats=true`: add the label; `stats_align` sets its corner, `stats_mask`
+  limits it to a region (e.g. without neighbouring ice sheets).
+- `area`: [m^2] cell area for the volume, field or scalar (default: the map
+  area from the spacing of `x`; see `icesheet_stats`).
+
+Returns a NamedTuple with the velocity heatmap `hm` (for `icesheet_colorbar`),
+the colormap `cmap` and the `stats`.
+"""
+function icesheet_panel!(ax, x, y, uxy_s, z_srf, H_ice;
+                         z_bed = nothing, z_sl = 0.0, ref = nothing, ref_color = :orangered,
+                         Hmin = 1.0, cmap = gencol_vel(20; colorrange = (0.0, 2000.0)),
+                         stats = true, stats_align = (:left, :bottom), stats_mask = nothing,
+                         area = (abs(x[2] - x[1]) * 1e3)^2)
+
+    H   = Float64.(coalesce.(H_ice, 0.0))
+    ice = H .> Hmin
+
+    # Background: land and bathymetry
+    if !isnothing(z_bed)
+        zb = Float64.(coalesce.(z_bed, NaN)) .- z_sl
+        heatmap!(ax, x, y, ifelse.(zb .>= 0.0, 1.0, NaN), colormap = [col_land, col_land],
+                 colorrange = (0, 1))
+        contour_ice2D_bath!(ax, x, y, zb)
+    end
+
+    # Surface velocity on the ice, floored at the lower end of the colormap
+    u  = Float64.(coalesce.(uxy_s, 0.0))
+    u  = ifelse.(ice, max.(u, cmap[:range][1]), NaN)
+    hm = heatmapclip!(ax, x, y, u; colormap = cmap[:colors], colorrange = cmap[:range],
+                      scale = log10)
+
+    # Surface elevation contours and margin
+    contour_ice2D_topo!(ax, x, y, ifelse.(ice, Float64.(coalesce.(z_srf, NaN)), NaN))
+    contour_ice2D_icemargin!(ax, x, y, H; Hmin = Hmin)
+
+    if !isnothing(ref)
+        contour!(ax, x, y, Float64.(ref), levels = [0.5], color = ref_color,
+                 linewidth = 1.4, linestyle = :dash)
+    end
+
+    s = icesheet_stats(H, area; z_bed = z_bed, z_sl = z_sl, Hmin = Hmin, mask = stats_mask)
+    if stats
+        x0 = stats_align[1] == :left ? 0.0 : 1.0
+        y0 = stats_align[2] == :bottom ? 0.0 : 1.0
+        text!(ax, x0, y0, space = :relative, align = stats_align,
+              offset = (x0 == 0 ? 4 : -4, y0 == 0 ? 4 : -4),
+              fontsize = 0.85 * Makie.theme(:fontsize)[],
+              text = @sprintf("Hₘₐₓ = %.1f km\nV = %.1f m SLE", s.H_max / 1e3, s.V_sle))
+    end
+
+    return (hm = hm, cmap = cmap, stats = s)
+end
+
+"""
+    icesheet_colorbar(pos, hm; cmap=gencol_vel(20), label="Surface velocity [m/yr]", kwargs...)
+
+Colorbar for the velocity shading of `icesheet_panel!`, with the ticks of `cmap`.
+"""
+function icesheet_colorbar(pos, hm; cmap = gencol_vel(20; colorrange = (0.0, 2000.0)),
+                           label = "Surface velocity [m/yr]", kwargs...)
+    return Colorbar(pos, hm; ticks = cmap[:ticks], label = label, kwargs...)
 end
 
 """
@@ -165,9 +231,15 @@ function contour3D_ice2D_topo!(ax, xc, yc, myvar; linewidth_zero=1.4)
     return ct1,ct2,ct3 
 end
 
-function contour_ice2D_icemargin!(ax, xc, yc, H_ice; linewidth=1.6)
+"""
+Add the ice margin (H_ice > Hmin) as a contour to a predefined axis.
+"""
+function contour_ice2D_icemargin!(ax, xc, yc, H_ice; Hmin=1.0, color=:black, linewidth=1.6,
+                                  linestyle=:solid)
 
-    ct = contour!(ax, xc, yc, H_ice, color=:black,levels=[0],linewidth=linewidth)
+    mask = Float64.(coalesce.(H_ice, 0.0) .> Hmin)
+    ct = contour!(ax, xc, yc, mask, color=color, levels=[0.5], linewidth=linewidth,
+                  linestyle=linestyle)
 
     return ct
 end
